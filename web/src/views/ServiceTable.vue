@@ -126,8 +126,14 @@ function applyInterp(path) {
   form.command = restCmd ? `${q} ${restCmd}` : q
 }
 
-function act(action, id) {
-  rest[action](id)
+async function act(action, id) {
+  const res = await rest[action](id)
+  if (res && res.error) {
+    ElMessage({ message: res.error, type: 'error', duration: 6000, showClose: true })
+    return
+  }
+  if (action === 'start') ElMessage.success('启动指令已发送')
+  emit('refresh')
 }
 function openDir(row) {
   rest.openDir(row.id)

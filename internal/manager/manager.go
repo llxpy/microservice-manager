@@ -18,6 +18,8 @@ import (
 	"microservice-manager/internal/executil"
 	"microservice-manager/internal/store"
 	"microservice-manager/internal/ws"
+
+	"github.com/shirou/gopsutil/v3/process"
 )
 
 type Status struct {
@@ -309,9 +311,16 @@ func (m *Manager) Start(id string) error {
 	m.mu.Lock()
 	if _, ok := m.procs[id]; ok {
 		m.mu.Unlock()
-		return errors.New("service already running")
+		return errors.New("服务已在运行中")
 	}
 	m.mu.Unlock()
+
+	// 启动前预检端口占用，直接给出占用者信息，避免启动后绑定失败
+	if sv.Port > 0 {
+		if pid, pname := portOwner(sv.Port); pid > 0 {
+			return fmt.Errorf("端口 %d 已被 PID %d (%s) 占用：请先停止该进程，或在「编辑」中修改服务端口", sv.Port, pid, pname)
+		}
+	}
 
 	var cmd *exec.Cmd
 	if sv.Type == "jar" {
@@ -627,6 +636,37 @@ func (m *Manager) StatusOf(id string) *Status {
 		cp.State = "stopped"
 	}
 	return &cp
+}
+
+// portOwner 查询正在监听指定端口的进程（pid + 进程名），无占用者返回 0
+func portOwner(port int) (int, string) {
+	out, err := executil.Command("netstat", "-ano", "-p", "tcp").Output()
+	if err != nil {
+		return 0, ""
+	}
+	suffix := fmt.Sprintf(":%d", port)
+	for _, line := range strings.Split(string(out), "\n") {
+		fields := strings.Fields(line)
+		// TCP  0.0.0.0:28001  0.0.0.0:0  LISTENING  22020
+		if len(fields) < 5 || !strings.EqualFold(fields[len(fields)-2], "LISTENING") {
+			continue
+		}
+		if !strings.HasSuffix(fields[1], suffix) {
+			continue
+		}
+		pid, err := strconv.Atoi(fields[len(fields)-1])
+		if err != nil || pid <= 0 {
+			continue
+		}
+		name := "unknown"
+		if p, err := process.NewProcess(int32(pid)); err == nil {
+			if n, err := p.Name(); err == nil {
+				name = n
+			}
+		}
+		return pid, name
+	}
+	return 0, ""
 }
 
 func portOpen(port int) bool {
