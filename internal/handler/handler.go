@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/gorilla/websocket"
+	"github.com/shirou/gopsutil/v3/process"
 
 	"microservice-manager/internal/builder"
 	"microservice-manager/internal/discovery"
@@ -45,6 +48,9 @@ func (h *Handler) Register(mux *http.ServeMux, wsPath string) {
 	mux.HandleFunc("POST /api/build", h.buildStart)
 	mux.HandleFunc("POST /api/build/stop", h.buildStop)
 	mux.HandleFunc("GET /api/build", h.buildStatus)
+	mux.HandleFunc("GET /api/system/processes", h.sysProcesses)
+	mux.HandleFunc("POST /api/system/kill", h.sysKill)
+	mux.HandleFunc("POST /api/system/open-dir", h.sysOpenDir)
 	mux.HandleFunc(wsPath, h.Hub.ServeWS)
 }
 
@@ -212,6 +218,71 @@ func (h *Handler) openDir(w http.ResponseWriter, r *http.Request) {
 	} else {
 		exec.Command("explorer", target).Start()
 	}
+	writeJSON(w, 200, map[string]string{"ok": "true"})
+}
+
+func (h *Handler) sysProcesses(w http.ResponseWriter, r *http.Request) {
+	procs, err := process.Processes()
+	if err != nil {
+		writeJSON(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
+	self := int32(os.Getpid())
+	type procInfo struct {
+		PID   int32   `json:"pid"`
+		Name  string  `json:"name"`
+		CPU   float64 `json:"cpu"`
+		MemMB float64 `json:"memMb"`
+		Exe   string  `json:"exe"`
+		Self  bool    `json:"self"`
+	}
+	out := make([]procInfo, 0, len(procs))
+	for _, p := range procs {
+		name, err := p.Name()
+		if err != nil || name == "" {
+			continue
+		}
+		cpu, _ := p.CPUPercent()
+		memMB := 0.0
+		if mi, err := p.MemoryInfo(); err == nil && mi != nil {
+			memMB = float64(mi.RSS) / 1024 / 1024
+		}
+		exe, _ := p.Exe()
+		pid := p.Pid
+		out = append(out, procInfo{PID: pid, Name: name, CPU: cpu, MemMB: memMB, Exe: exe, Self: pid == self})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].MemMB > out[j].MemMB })
+	writeJSON(w, 200, out)
+}
+
+func (h *Handler) sysKill(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		PID int32 `json:"pid"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.PID <= 0 {
+		writeJSON(w, 400, map[string]string{"error": "invalid pid"})
+		return
+	}
+	if body.PID <= 4 || body.PID == int32(os.Getpid()) {
+		writeJSON(w, 400, map[string]string{"error": "拒绝结束系统关键进程或面板自身"})
+		return
+	}
+	if err := exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(int(body.PID))).Run(); err != nil {
+		writeJSON(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]string{"ok": "true"})
+}
+
+func (h *Handler) sysOpenDir(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Path string `json:"path"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Path == "" {
+		writeJSON(w, 400, map[string]string{"error": "invalid path"})
+		return
+	}
+	exec.Command("explorer", "/select,"+body.Path).Start()
 	writeJSON(w, 200, map[string]string{"ok": "true"})
 }
 

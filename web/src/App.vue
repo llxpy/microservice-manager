@@ -30,6 +30,7 @@
           {{ buildRunning ? '构建中…' : '🔨 构建项目' }}
         </el-button>
         <el-button type="warning" plain @click="addOpen = true">➕ 添加服务</el-button>
+        <el-button plain @click="sysOpen = true">🖥 系统进程</el-button>
         <el-button :loading="scanning" @click="rescan(false)">重新扫描</el-button>
       </div>
     </header>
@@ -79,6 +80,10 @@
       <MetricsChart v-if="metricService" :service-id="metricService" />
     </el-dialog>
 
+    <el-dialog v-model="sysOpen" title="系统进程监控" width="1000px" destroy-on-close top="6vh">
+      <SystemProcesses />
+    </el-dialog>
+
     <el-dialog v-model="addOpen" title="添加服务（任意语言）" width="560px">
       <el-form label-width="90px">
         <el-form-item label="名称" required><el-input v-model="addForm.name" placeholder="my-service" /></el-form-item>
@@ -116,6 +121,7 @@ import { ElMessage } from 'element-plus'
 import ServiceTable from './views/ServiceTable.vue'
 import LogTerminal from './components/LogTerminal.vue'
 import MetricsChart from './components/MetricsChart.vue'
+import SystemProcesses from './components/SystemProcesses.vue'
 import { initWS, onMessage, rest } from './api/ws.js'
 
 const services = ref([])
@@ -129,6 +135,7 @@ const buildOpen = ref(false)
 const buildRunning = ref(false)
 const buildDir = ref('')
 const addOpen = ref(false)
+const sysOpen = ref(false)
 const addForm = reactive({ name: '', command: '', workDir: '', port: 0, group: '', description: '', autoRestart: true })
 
 function doAdd() {
