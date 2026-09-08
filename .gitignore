@@ -1,0 +1,17 @@
+# 构建产物
+*.exe
+micro-manager
+
+# 运行时数据
+manager.db
+manager.db-shm
+manager.db-wal
+logs/
+*.pid
+
+# 前端依赖
+web/node_modules/
+
+# IDE
+.idea/
+.vscode/

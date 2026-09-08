@@ -1,0 +1,11 @@
+# 手动定义的服务（优先于自动发现；按 path 去重合并）
+# scanDir: D:\svc
+services:
+  - name: gateway
+    type: jar
+    path: D:\svc\gateway.jar
+    javaOpts: "-Xms96m -Xmx192m -XX:+UseSerialGC"
+    port: 8080
+    healthUrl: http://localhost:8080/actuator/health
+    group: base
+    autoRestart: true
