@@ -12,31 +12,31 @@
     </el-table-column>
     <el-table-column label="状态" width="92">
       <template #default="{ row }">
-        <span class="dot" :class="row.state"></span>{{ stateText(row.state) }}
+        <span class="dot mm-dot" :class="[row.state, { beat: row.state === 'running' }]"></span>{{ stateText(row.state) }}
       </template>
     </el-table-column>
     <el-table-column prop="port" label="端口" width="64">
-      <template #default="{ row }">{{ row.port || '-' }}</template>
+      <template #default="{ row }"><span class="num">{{ row.port || '-' }}</span></template>
     </el-table-column>
     <el-table-column label="健康" width="76">
       <template #default="{ row }">
-        <el-tag :type="healthType(row)" size="small" effect="dark">{{ healthText(row) }}</el-tag>
+        <el-tag :type="healthType(row)" size="small" effect="dark" round>{{ healthText(row) }}</el-tag>
       </template>
     </el-table-column>
     <el-table-column label="CPU" width="72">
-      <template #default="{ row }">{{ fmt(row.cpu, '%') }}</template>
+      <template #default="{ row }"><span class="num">{{ fmt(row.cpu, '%') }}</span></template>
     </el-table-column>
     <el-table-column label="内存" width="82">
-      <template #default="{ row }">{{ fmt(row.memMb, 'MB') }}</template>
+      <template #default="{ row }"><span class="num">{{ fmt(row.memMb, 'MB') }}</span></template>
     </el-table-column>
     <el-table-column label="线程" width="56">
-      <template #default="{ row }">{{ row.state === 'stopped' ? '-' : (row.threads ?? '-') }}</template>
+      <template #default="{ row }"><span class="num">{{ row.state === 'stopped' ? '-' : (row.threads ?? '-') }}</span></template>
     </el-table-column>
     <el-table-column label="运行时长" width="84">
-      <template #default="{ row }">{{ uptime(row) }}</template>
+      <template #default="{ row }"><span class="num">{{ uptime(row) }}</span></template>
     </el-table-column>
     <el-table-column label="PID" width="64">
-      <template #default="{ row }">{{ row.pid || '-' }}</template>
+      <template #default="{ row }"><span class="num">{{ row.pid || '-' }}</span></template>
     </el-table-column>
     <el-table-column label="操作" width="310" fixed="right">
       <template #default="{ row }">
@@ -161,13 +161,21 @@ function uptime(row) {
 </script>
 
 <style scoped>
-.svc-name { font-weight: 600; display: flex; align-items: center; gap: 6px; }
-.svc-desc { font-size: 12px; color: #409eff; margin-top: 1px; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.svc-path { font-size: 11px; color: var(--el-text-color-secondary); max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
-.dot.running { background: var(--el-color-success); }
-.dot.starting { background: var(--el-color-warning); }
-.dot.stopped { background: var(--el-color-info); }
-.dot.failed { background: var(--el-color-danger); }
+.svc-name { font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.svc-desc { font-size: 12px; color: #4f46e5; margin-top: 1px; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.svc-path { font-family: var(--mm-mono); font-size: 10.5px; color: #9a96b3; margin-top: 2px; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.num { font-family: var(--mm-mono); font-size: 12.5px; }
+.dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; }
+.dot.running { background: #22c55e; animation: mm-pulse 2s infinite; }
+.dot.starting { background: #f59e0b; animation: mm-pulse-amber 1.2s infinite; }
+.dot.stopped { background: #c0c4cc; }
+.dot.failed { background: #ef4444; }
+@keyframes mm-pulse-amber {
+  0% { box-shadow: 0 0 0 0 rgba(245,158,11,.45); }
+  70% { box-shadow: 0 0 0 5px rgba(245,158,11,0); }
+  100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); }
+}
+:deep(.el-table) { --el-table-header-bg-color: #faf9f6; --el-table-header-text-color: #8a86a8; --el-table-row-hover-bg-color: #f4f2fc; }
+:deep(.el-table th) { font-family: var(--mm-mono); font-size: 11px; letter-spacing: .6px; text-transform: uppercase; }
 .hint { margin-left: 10px; font-size: 12px; color: var(--el-text-color-secondary); }
 </style>

@@ -2,10 +2,21 @@
   <div class="app">
     <header class="topbar">
       <div class="brand">
-        <div class="brand-icon">⚙️</div>
+        <svg class="logo" viewBox="0 0 48 48" width="40" height="40">
+          <defs>
+            <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#4f46e5" />
+              <stop offset="1" stop-color="#a855f7" />
+            </linearGradient>
+          </defs>
+          <rect x="3" y="3" width="42" height="42" rx="12" fill="url(#lg)" />
+          <path d="M24 10l12 7v14l-12 7-12-7V17z" fill="none" stroke="#fff" stroke-width="2.4" stroke-linejoin="round" />
+          <circle cx="24" cy="24" r="4.5" fill="#fff" />
+          <path d="M24 13v6M24 29v6M13.6 18l5.4 3M29 27l5.4 3M13.6 30l5.4-3M29 21l5.4-3" stroke="#fff" stroke-width="1.6" stroke-linecap="round" />
+        </svg>
         <div>
-          <div class="brand-title">微服务轻量管家</div>
-          <div class="brand-sub">Java Services Manager</div>
+          <div class="brand-title">Micro Manager</div>
+          <div class="brand-sub">// LOCAL SERVICES BUTLER</div>
         </div>
       </div>
       <div class="scan-box">
@@ -358,38 +369,79 @@ onUnmounted(() => {
 </script>
 
 <style>
-body { margin: 0; background: #f2f4f8; font-family: 'Segoe UI', system-ui, sans-serif; }
+:root {
+  --mm-primary: #4f46e5;
+  --mm-primary-soft: #eceafd;
+  --mm-ink: #1e2235;
+  --mm-paper: #f6f5f1;
+  --el-color-primary: #4f46e5;
+  --el-color-primary-light-3: #7c6ef2;
+  --el-color-primary-light-5: #9b90f5;
+  --el-color-primary-light-7: #bfb8f8;
+  --el-color-primary-light-8: #d5d1fa;
+  --el-color-primary-light-9: #eceafa;
+  --el-color-primary-dark-2: #3f38c9;
+  --el-border-radius-base: 8px;
+  --mm-mono: 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: var(--mm-ink);
+  background:
+    linear-gradient(rgba(79,70,229,.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79,70,229,.045) 1px, transparent 1px),
+    radial-gradient(circle at 12% -8%, rgba(168,85,247,.08), transparent 34%),
+    var(--mm-paper);
+  background-size: 26px 26px, 26px 26px, auto, auto;
+}
 .app { min-height: 100vh; }
 .topbar {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 12px 24px; background: #fff;
-  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  padding: 12px 26px 14px; background: rgba(255,255,255,.88); backdrop-filter: blur(8px);
+  border-bottom: 1px solid #e5e2da;
+  box-shadow: 0 1px 0 rgba(79,70,229,.06), 0 8px 24px -18px rgba(30,34,53,.35);
   position: sticky; top: 0; z-index: 10; flex-wrap: wrap;
 }
-.brand { display: flex; align-items: center; gap: 10px; }
-.brand-icon {
-  width: 40px; height: 40px; border-radius: 10px; font-size: 20px;
-  background: linear-gradient(135deg, #409eff, #7c3aed); color: #fff;
-  display: flex; align-items: center; justify-content: center;
+.topbar::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
+  background: linear-gradient(90deg, #4f46e5, #a855f7 45%, transparent 80%);
 }
-.brand-title { font-size: 16px; font-weight: 700; color: #1f2d3d; line-height: 1.2; }
-.brand-sub { font-size: 11px; color: #909399; letter-spacing: .5px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.logo { border-radius: 12px; box-shadow: 0 6px 16px -6px rgba(79,70,229,.55); }
+.brand-title { font-size: 18px; font-weight: 800; letter-spacing: .3px; line-height: 1.15; }
+.brand-sub { font-family: var(--mm-mono); font-size: 10px; color: #8a86a8; letter-spacing: 2px; }
 .scan-box { display: flex; gap: 8px; align-items: center; flex: 1; min-width: 420px; justify-content: center; }
 .actions { display: flex; align-items: center; gap: 8px; }
 .ws-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 4px; }
-.ws-dot.on { background: #67c23a; box-shadow: 0 0 0 3px rgba(103,194,58,.2); }
-.ws-dot.off { background: #f56c6c; box-shadow: 0 0 0 3px rgba(245,108,108,.2); }
-.main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
-.list-bar { margin-bottom: 12px; }
-.group-title { display: inline-flex; gap: 10px; align-items: center; font-weight: 600; }
-.count { color: #909399; font-weight: 400; font-size: 13px; }
+.ws-dot.on { background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.18); }
+.ws-dot.off { background: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,.18); }
+.main { padding: 22px 26px; max-width: 1420px; margin: 0 auto; }
+.list-bar { margin-bottom: 14px; }
+.group-title { display: inline-flex; gap: 10px; align-items: center; font-weight: 700; font-family: var(--mm-mono); font-size: 13.5px; }
+.group-title .el-tag { font-family: inherit; }
+.count { color: #8a86a8; font-weight: 400; font-size: 12px; }
 .group-ops { margin-left: auto; margin-right: 16px; }
-.build-bar { display: flex; gap: 8px; margin-bottom: 10px; }
-.build-term { height: 420px; border: 1px solid #e8ecf2; border-radius: 8px; overflow: hidden; }
 .groups {
   --el-collapse-border-color: transparent;
-  background: #fff; border-radius: 12px; padding: 4px 16px;
-  box-shadow: 0 1px 4px rgba(0,0,0,.05);
+  background: transparent;
 }
-.groups .el-collapse-item__header { height: 52px; }
+.groups > .el-collapse-item {
+  background: #fff; border-radius: 14px; margin-bottom: 16px;
+  border: 1px solid #e8e5dd;
+  box-shadow: 0 1px 2px rgba(30,34,53,.04), 0 12px 32px -22px rgba(30,34,53,.25);
+  overflow: hidden;
+}
+.groups .el-collapse-item__header { height: 56px; padding: 0 18px; }
+.groups .el-collapse-item__wrap { border-bottom: none; }
+.build-bar { display: flex; gap: 8px; margin-bottom: 10px; }
+.build-term { height: 420px; border: 1px solid #e5e2da; border-radius: 10px; overflow: hidden; }
+
+@keyframes mm-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(34,197,94,.45); }
+  70% { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+  100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+}
+.dot-mm { border-radius: 50%; }
 </style>
