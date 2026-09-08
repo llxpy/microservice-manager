@@ -29,6 +29,7 @@
         <el-button type="success" plain :disabled="buildRunning" @click="buildOpen = true">
           {{ buildRunning ? '构建中…' : '🔨 构建项目' }}
         </el-button>
+        <el-button type="warning" plain @click="addOpen = true">➕ 添加服务</el-button>
         <el-button :loading="scanning" @click="rescan(false)">重新扫描</el-button>
       </div>
     </header>
@@ -78,6 +79,24 @@
       <MetricsChart v-if="metricService" :service-id="metricService" />
     </el-dialog>
 
+    <el-dialog v-model="addOpen" title="添加服务（任意语言）" width="560px">
+      <el-form label-width="90px">
+        <el-form-item label="名称" required><el-input v-model="addForm.name" placeholder="my-service" /></el-form-item>
+        <el-form-item label="启动命令" required>
+          <el-input v-model="addForm.command" placeholder="python app.py / node server.js / go run main.go ..." />
+        </el-form-item>
+        <el-form-item label="工作目录"><el-input v-model="addForm.workDir" placeholder="命令执行所在目录" /></el-form-item>
+        <el-form-item label="端口"><el-input-number v-model="addForm.port" :min="0" :max="65535" controls-position="right" /></el-form-item>
+        <el-form-item label="分组"><el-input v-model="addForm.group" placeholder="default" /></el-form-item>
+        <el-form-item label="说明"><el-input v-model="addForm.description" type="textarea" :rows="2" placeholder="这个服务是干什么的" /></el-form-item>
+        <el-form-item label="自动重启"><el-switch v-model="addForm.autoRestart" /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="addOpen = false">取消</el-button>
+        <el-button type="primary" @click="doAdd">添加</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="buildOpen" title="构建项目（mvn package -DskipTests）" width="900px" destroy-on-close>
       <div class="build-bar">
         <el-input v-model="buildDir" placeholder="项目目录（含 pom.xml），如 D:\Java\itheima-chain-cloud" clearable @keyup.enter="doBuild" />
@@ -109,6 +128,25 @@ const openGroups = ref([])
 const buildOpen = ref(false)
 const buildRunning = ref(false)
 const buildDir = ref('')
+const addOpen = ref(false)
+const addForm = reactive({ name: '', command: '', workDir: '', port: 0, group: '', description: '', autoRestart: true })
+
+function doAdd() {
+  if (!addForm.name.trim() || !addForm.command.trim()) {
+    ElMessage.warning('名称和启动命令必填')
+    return
+  }
+  rest.create({ ...addForm, name: addForm.name.trim(), command: addForm.command.trim() }).then((res) => {
+    if (res && res.error) {
+      ElMessage.error(res.error)
+      return
+    }
+    ElMessage.success('已添加')
+    addOpen.value = false
+    Object.assign(addForm, { name: '', command: '', workDir: '', port: 0, group: '', description: '', autoRestart: true })
+    refresh()
+  })
+}
 let buildPoll = null
 
 function doBuild() {

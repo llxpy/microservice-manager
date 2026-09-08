@@ -1,66 +1,128 @@
 <template>
   <el-table :data="items" size="default" stripe>
-    <el-table-column label="名称" min-width="200">
+    <el-table-column label="服务" min-width="230">
       <template #default="{ row }">
-        <div class="svc-name">{{ row.name }}</div>
+        <div class="svc-name">
+          {{ row.name }}
+          <el-tag v-if="row.type === 'custom'" size="small" effect="plain" round>自定义</el-tag>
+        </div>
+        <div v-if="row.description" class="svc-desc" :title="row.description">{{ row.description }}</div>
         <div class="svc-path" :title="row.path">{{ row.path }}</div>
       </template>
     </el-table-column>
-    <el-table-column label="状态" width="100">
+    <el-table-column label="状态" width="92">
       <template #default="{ row }">
         <span class="dot" :class="row.state"></span>{{ stateText(row.state) }}
       </template>
     </el-table-column>
-    <el-table-column prop="port" label="端口" width="70">
+    <el-table-column prop="port" label="端口" width="64">
       <template #default="{ row }">{{ row.port || '-' }}</template>
     </el-table-column>
-    <el-table-column label="健康" width="90">
+    <el-table-column label="健康" width="76">
       <template #default="{ row }">
         <el-tag :type="healthType(row)" size="small" effect="dark">{{ healthText(row) }}</el-tag>
       </template>
     </el-table-column>
-    <el-table-column label="CPU" width="80">
+    <el-table-column label="CPU" width="72">
       <template #default="{ row }">{{ fmt(row.cpu, '%') }}</template>
     </el-table-column>
-    <el-table-column label="内存" width="90">
+    <el-table-column label="内存" width="82">
       <template #default="{ row }">{{ fmt(row.memMb, 'MB') }}</template>
     </el-table-column>
-    <el-table-column label="线程" width="60">
+    <el-table-column label="线程" width="56">
       <template #default="{ row }">{{ row.state === 'stopped' ? '-' : (row.threads ?? '-') }}</template>
     </el-table-column>
-    <el-table-column label="运行时长" width="90">
+    <el-table-column label="运行时长" width="84">
       <template #default="{ row }">{{ uptime(row) }}</template>
     </el-table-column>
-    <el-table-column label="PID" width="70">
+    <el-table-column label="PID" width="64">
       <template #default="{ row }">{{ row.pid || '-' }}</template>
     </el-table-column>
-    <el-table-column label="操作" width="300" fixed="right">
+    <el-table-column label="操作" width="310" fixed="right">
       <template #default="{ row }">
-        <el-button size="small" type="primary" :disabled="row.state !== 'stopped' && row.state !== 'failed'" @click="act('start', row.id)">启动</el-button>
-        <el-button size="small" type="danger" :disabled="row.state === 'stopped'" @click="act('stop', row.id)">停止</el-button>
-        <el-button size="small" :disabled="row.state === 'stopped'" @click="act('restart', row.id)">重启</el-button>
-        <el-button size="small" @click="$emit('open-log', row.id)">日志</el-button>
-        <el-button size="small" @click="$emit('open-metrics', row.id)">指标</el-button>
-        <el-button size="small" type="warning" plain @click="del(row)">删除</el-button>
+        <el-button link type="primary" :disabled="row.state !== 'stopped' && row.state !== 'failed'" @click="act('start', row.id)">启动</el-button>
+        <el-button link type="danger" :disabled="row.state === 'stopped'" @click="act('stop', row.id)">停止</el-button>
+        <el-button link type="primary" :disabled="row.state === 'stopped'" @click="act('restart', row.id)">重启</el-button>
+        <el-divider direction="vertical" />
+        <el-button link type="info" @click="$emit('open-log', row.id)">日志</el-button>
+        <el-button link type="info" @click="$emit('open-metrics', row.id)">指标</el-button>
+        <el-button link type="info" @click="openDir(row)">目录</el-button>
+        <el-divider direction="vertical" />
+        <el-button link type="warning" @click="openEdit(row)">编辑</el-button>
+        <el-button link type="danger" @click="del(row)">删除</el-button>
       </template>
     </el-table-column>
   </el-table>
+
+  <el-dialog v-model="editOpen" title="编辑服务" width="560px">
+    <el-form label-width="90px">
+      <el-form-item label="端口">
+        <el-input-number v-model="form.port" :min="0" :max="65535" controls-position="right" />
+        <span class="hint">用于状态探测与健康检查，0 = 不探测</span>
+      </el-form-item>
+      <el-form-item label="分组"><el-input v-model="form.group" placeholder="default" /></el-form-item>
+      <el-form-item label="说明">
+        <el-input v-model="form.description" type="textarea" :rows="2" placeholder="这个服务是干什么的" />
+      </el-form-item>
+      <el-form-item label="健康地址"><el-input v-model="form.healthUrl" placeholder="留空则按端口自动生成 /actuator/health" /></el-form-item>
+      <template v-if="form.type === 'jar'">
+        <el-form-item label="Java 参数"><el-input v-model="form.javaOpts" placeholder="-Xms96m -Xmx128m" /></el-form-item>
+      </template>
+      <template v-else>
+        <el-form-item label="启动命令"><el-input v-model="form.command" placeholder="python app.py" /></el-form-item>
+        <el-form-item label="工作目录"><el-input v-model="form.workDir" /></el-form-item>
+      </template>
+      <el-form-item label="自动重启"><el-switch v-model="form.autoRestart" /></el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="editOpen = false">取消</el-button>
+      <el-button type="primary" @click="saveEdit">保存</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
+import { reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { rest } from '../api/ws.js'
 
+defineProps({ items: { type: Array, default: () => [] } })
 const emit = defineEmits(['open-log', 'open-metrics', 'refresh'])
 
-defineProps({ items: { type: Array, default: () => [] } })
+const editOpen = ref(false)
+const form = reactive({ id: '', port: 0, group: '', description: '', javaOpts: '', command: '', workDir: '', healthUrl: '', autoRestart: true, type: 'jar' })
 
 function act(action, id) {
   rest[action](id)
 }
+function openDir(row) {
+  rest.openDir(row.id)
+}
+function openEdit(row) {
+  Object.assign(form, {
+    id: row.id, port: row.port || 0, group: row.group || '', description: row.description || '',
+    javaOpts: row.javaOpts || '', command: row.command || '', workDir: row.workDir || '',
+    healthUrl: row.healthUrl || '', autoRestart: !!row.autoRestart, type: row.type || 'jar'
+  })
+  editOpen.value = true
+}
+async function saveEdit() {
+  const res = await rest.update(form.id, {
+    port: form.port, group: form.group, description: form.description,
+    javaOpts: form.javaOpts, command: form.command, workDir: form.workDir,
+    healthUrl: form.healthUrl, autoRestart: form.autoRestart
+  })
+  if (res && res.error) {
+    ElMessage.error(res.error)
+    return
+  }
+  ElMessage.success('已保存')
+  editOpen.value = false
+  emit('refresh')
+}
 async function del(row) {
   try {
-    await ElMessageBox.confirm(`确定从面板移除「${row.name}」？（不会删除 jar 文件）`, '删除服务', { type: 'warning' })
+    await ElMessageBox.confirm(`确定从面板移除「${row.name}」？（不会删除文件）`, '删除服务', { type: 'warning' })
   } catch (e) {
     return
   }
@@ -96,11 +158,13 @@ function uptime(row) {
 </script>
 
 <style scoped>
-.svc-name { font-weight: 600; }
+.svc-name { font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.svc-desc { font-size: 12px; color: #409eff; margin-top: 1px; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .svc-path { font-size: 11px; color: var(--el-text-color-secondary); max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
 .dot.running { background: var(--el-color-success); }
 .dot.starting { background: var(--el-color-warning); }
 .dot.stopped { background: var(--el-color-info); }
 .dot.failed { background: var(--el-color-danger); }
+.hint { margin-left: 10px; font-size: 12px; color: var(--el-text-color-secondary); }
 </style>

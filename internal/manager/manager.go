@@ -259,13 +259,22 @@ func (m *Manager) Start(id string) error {
 	}
 	m.mu.Unlock()
 
-	args := append([]string{}, strings.Fields(sv.JavaOpts)...)
-	args = append(args, "-jar", sv.Path)
+	var cmd *exec.Cmd
+	if sv.Type == "jar" {
+		args := append([]string{}, strings.Fields(sv.JavaOpts)...)
+		args = append(args, "-jar", sv.Path)
+		cmd = exec.Command("java", args...)
+	} else {
+		// 任意语言：直接执行启动命令（cmd /c python app.py / node server.js ...）
+		if sv.Command == "" {
+			return errors.New("服务缺少启动命令")
+		}
+		cmd = exec.Command("cmd", "/c", sv.Command)
+	}
 	workDir := sv.WorkDir
 	if workDir == "" {
 		workDir = filepath.Dir(sv.Path)
 	}
-	cmd := exec.Command("java", args...)
 	cmd.Dir = workDir
 
 	stdout, err := cmd.StdoutPipe()
@@ -550,6 +559,7 @@ func flatten(sv *store.Service, st *Status) map[string]interface{} {
 	return map[string]interface{}{
 		"id": sv.ID, "name": sv.Name, "group": sv.Group, "type": sv.Type,
 		"path": sv.Path, "workDir": sv.WorkDir, "javaOpts": sv.JavaOpts,
+		"command": sv.Command, "description": sv.Description,
 		"port": sv.Port, "healthUrl": sv.HealthURL,
 		"autoRestart": sv.AutoRestart, "enabled": sv.Enabled,
 		"state": st.State, "pid": st.PID, "health": st.Health,
