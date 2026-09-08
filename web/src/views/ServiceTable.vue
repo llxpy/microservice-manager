@@ -41,19 +41,36 @@
         <el-button size="small" :disabled="row.state === 'stopped'" @click="act('restart', row.id)">重启</el-button>
         <el-button size="small" @click="$emit('open-log', row.id)">日志</el-button>
         <el-button size="small" @click="$emit('open-metrics', row.id)">指标</el-button>
+        <el-button size="small" type="warning" plain @click="del(row)">删除</el-button>
       </template>
     </el-table-column>
   </el-table>
 </template>
 
 <script setup>
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { rest } from '../api/ws.js'
 
+const emit = defineEmits(['open-log', 'open-metrics', 'refresh'])
+
 defineProps({ items: { type: Array, default: () => [] } })
-defineEmits(['open-log', 'open-metrics', 'refresh'])
 
 function act(action, id) {
   rest[action](id)
+}
+async function del(row) {
+  try {
+    await ElMessageBox.confirm(`确定从面板移除「${row.name}」？（不会删除 jar 文件）`, '删除服务', { type: 'warning' })
+  } catch (e) {
+    return
+  }
+  const res = await rest.remove(row.id)
+  if (res && res.error) {
+    ElMessage.error(res.error)
+    return
+  }
+  ElMessage.success('已移除')
+  emit('refresh')
 }
 function stateText(s) {
   return { running: '运行中', starting: '启动中', stopped: '已停止', failed: '异常退出' }[s] || s

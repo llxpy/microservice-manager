@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"microservice-manager/internal/builder"
 	"microservice-manager/internal/config"
 	"microservice-manager/internal/discovery"
 	"microservice-manager/internal/handler"
@@ -62,6 +63,21 @@ func main() {
 		mgr.SetService(sv)
 	}
 
+	// 构建完成后自动重新扫描，新 jar 直接入列
+	bldr := builder.New(hub)
+	rescan := func() {
+		dir := st.GetSetting("scanDir")
+		if dir == "" {
+			dir = cfg.ScanDir
+		}
+		if res, err := discovery.Scan(dir, st); err == nil {
+			for _, sv := range res.New {
+				mgr.SetService(sv)
+			}
+		}
+	}
+	bldr.OnDone = func(dir string, success bool) { rescan() }
+
 	mon := monitor.New(cfg, mgr)
 	mon.Run()
 
@@ -82,7 +98,7 @@ func main() {
 		}
 	}()
 
-	h := &handler.Handler{Hub: hub, Manager: mgr, Store: st, ScanDir: cfg.ScanDir}
+	h := &handler.Handler{Hub: hub, Manager: mgr, Store: st, Builder: bldr, ScanDir: cfg.ScanDir}
 	mux := http.NewServeMux()
 	h.Register(mux, cfg.WsPath)
 

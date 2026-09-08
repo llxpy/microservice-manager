@@ -8,6 +8,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"microservice-manager/internal/builder"
 	"microservice-manager/internal/discovery"
 	"microservice-manager/internal/manager"
 	"microservice-manager/internal/store"
@@ -18,6 +19,7 @@ type Handler struct {
 	Hub     *ws.Hub
 	Manager *manager.Manager
 	Store   *store.Store
+	Builder *builder.Builder
 	ScanDir string
 }
 
@@ -27,12 +29,16 @@ func (h *Handler) Register(mux *http.ServeMux, wsPath string) {
 	mux.HandleFunc("POST /api/services/{id}/start", h.start)
 	mux.HandleFunc("POST /api/services/{id}/stop", h.stop)
 	mux.HandleFunc("POST /api/services/{id}/restart", h.restart)
+	mux.HandleFunc("DELETE /api/services/{id}", h.remove)
 	mux.HandleFunc("POST /api/groups/{group}/start", h.groupStart)
 	mux.HandleFunc("POST /api/groups/{group}/stop", h.groupStop)
 	mux.HandleFunc("GET /api/discovery/scan", h.scan)
 	mux.HandleFunc("GET /api/logs/{id}", h.logs)
 	mux.HandleFunc("GET /api/settings", h.getSettings)
 	mux.HandleFunc("POST /api/settings", h.setSettings)
+	mux.HandleFunc("POST /api/build", h.buildStart)
+	mux.HandleFunc("POST /api/build/stop", h.buildStop)
+	mux.HandleFunc("GET /api/build", h.buildStatus)
 	mux.HandleFunc(wsPath, h.Hub.ServeWS)
 }
 
@@ -60,6 +66,19 @@ func (h *Handler) getService(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ok(w http.ResponseWriter, r *http.Request, fn func(string) error, idKey string) {
 	id := r.PathValue(idKey)
 	if err := fn(id); err != nil {
+		writeJSON(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]string{"ok": "true"})
+}
+
+func (h *Handler) remove(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := h.Manager.Remove(id); err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	if err := h.Store.Delete(id); err != nil {
 		writeJSON(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
@@ -136,9 +155,45 @@ func (h *Handler) logs(w http.ResponseWriter, r *http.Request) {
 	if lines <= 0 {
 		lines = 200
 	}
+	if id == builder.BuildServiceID {
+		writeJSON(w, 200, map[string]interface{}{"serviceId": id, "lines": h.Builder.Tail(lines)})
+		return
+	}
 	writeJSON(w, 200, map[string]interface{}{
 		"serviceId": id,
 		"lines":     h.Manager.Tail(id, lines),
+	})
+}
+
+func (h *Handler) buildStart(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Dir string `json:"dir"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "invalid body"})
+		return
+	}
+	if err := h.Builder.Start(strings.TrimSpace(body.Dir)); err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]string{"ok": "true"})
+}
+
+func (h *Handler) buildStop(w http.ResponseWriter, r *http.Request) {
+	if err := h.Builder.Stop(); err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]string{"ok": "true"})
+}
+
+func (h *Handler) buildStatus(w http.ResponseWriter, r *http.Request) {
+	running, dir, lastExit := h.Builder.Status()
+	writeJSON(w, 200, map[string]interface{}{
+		"running":  running,
+		"dir":      dir,
+		"lastExit": lastExit,
 	})
 }
 

@@ -168,6 +168,30 @@ func (m *Manager) get(id string) *store.Service {
 	return m.services[id]
 }
 
+// Remove 移除纳管（运行中的服务先停止）。返回错误表示服务正在运行需先停止。
+func (m *Manager) Remove(id string) error {
+	if m.Alive(id) {
+		return errors.New("服务运行中，请先停止")
+	}
+	m.mu.Lock()
+	delete(m.services, id)
+	delete(m.procs, id)
+	delete(m.statuses, id)
+	delete(m.buffers, id)
+	lg := m.loggers[id]
+	delete(m.loggers, id)
+	m.mu.Unlock()
+	if lg != nil {
+		lg.mu.Lock()
+		if lg.f != nil {
+			lg.f.Close()
+			lg.f = nil
+		}
+		lg.mu.Unlock()
+	}
+	return nil
+}
+
 func (m *Manager) IDs() []string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

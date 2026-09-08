@@ -60,10 +60,14 @@ export const rest = {
   start: (id) => api('POST', `/api/services/${encodeURIComponent(id)}/start`),
   stop: (id) => api('POST', `/api/services/${encodeURIComponent(id)}/stop`),
   restart: (id) => api('POST', `/api/services/${encodeURIComponent(id)}/restart`),
+  remove: (id) => api('DELETE', `/api/services/${encodeURIComponent(id)}`),
   groupStart: (g) => api('POST', `/api/groups/${encodeURIComponent(g)}/start`),
   groupStop: (g) => api('POST', `/api/groups/${encodeURIComponent(g)}/stop`),
   scan: (dir) => api('GET', '/api/discovery/scan' + (dir ? `?dir=${encodeURIComponent(dir)}` : '')),
   getSettings: () => api('GET', '/api/settings'),
   saveSettings: (body) => api('POST', '/api/settings', body),
+  buildStart: (dir) => api('POST', '/api/build', { dir }),
+  buildStop: () => api('POST', '/api/build/stop'),
+  buildStatus: () => api('GET', '/api/build'),
   logs: (id, lines = 200) => api('GET', `/api/logs/${encodeURIComponent(id)}?lines=${lines}`)
 }

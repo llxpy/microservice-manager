@@ -141,3 +141,10 @@ func (s *Store) SetSetting(key, value string) error {
 		ON CONFLICT(key) DO UPDATE SET value=excluded.value`, key, value)
 	return err
 }
+
+func (s *Store) Delete(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, err := s.db.Exec(`DELETE FROM services WHERE id=?`, id)
+	return err
+}

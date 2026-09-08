@@ -26,6 +26,9 @@
         </el-tooltip>
         <el-button @click="startAll">全部启动</el-button>
         <el-button type="danger" plain @click="stopAll">全部停止</el-button>
+        <el-button type="success" plain :disabled="buildRunning" @click="buildOpen = true">
+          {{ buildRunning ? '构建中…' : '🔨 构建项目' }}
+        </el-button>
         <el-button :loading="scanning" @click="rescan(false)">重新扫描</el-button>
       </div>
     </header>
@@ -74,6 +77,17 @@
     >
       <MetricsChart v-if="metricService" :service-id="metricService" />
     </el-dialog>
+
+    <el-dialog v-model="buildOpen" title="构建项目（mvn package -DskipTests）" width="900px" destroy-on-close>
+      <div class="build-bar">
+        <el-input v-model="buildDir" placeholder="项目目录（含 pom.xml），如 D:\Java\itheima-chain-cloud" clearable @keyup.enter="doBuild" />
+        <el-button v-if="!buildRunning" type="success" @click="doBuild">开始构建</el-button>
+        <el-button v-else type="danger" @click="doBuildStop">停止</el-button>
+      </div>
+      <div class="build-term">
+        <LogTerminal service-id="__build__" />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -92,6 +106,38 @@ const scanDir = ref('')
 const logService = ref(null)
 const metricService = ref(null)
 const openGroups = ref([])
+const buildOpen = ref(false)
+const buildRunning = ref(false)
+const buildDir = ref('')
+let buildPoll = null
+
+function doBuild() {
+  if (!buildDir.value.trim()) {
+    ElMessage.warning('请填写项目目录')
+    return
+  }
+  rest.buildStart(buildDir.value.trim()).then((res) => {
+    if (res && res.error) {
+      ElMessage.error(res.error)
+      return
+    }
+    buildRunning.value = true
+  })
+}
+function doBuildStop() {
+  rest.buildStop().then(() => ElMessage.info('已发送停止指令'))
+}
+function pollBuild() {
+  rest.buildStatus().then((s) => {
+    const was = buildRunning.value
+    buildRunning.value = s.running
+    if (buildOpen.value && s.dir && !buildDir.value) buildDir.value = s.dir
+    if (was && !s.running) {
+      ElMessage(s.lastExit === '构建成功' ? '构建完成，已自动扫描新服务' : `构建结束：${s.lastExit}`)
+      refresh()
+    }
+  })
+}
 const logOpen = computed({
   get: () => !!logService.value,
   set: (v) => { if (!v) logService.value = null }
@@ -184,15 +230,22 @@ onMounted(async () => {
     } else if (msg.type === 'status') {
       const i = services.value.findIndex((s) => s.id === msg.serviceId)
       if (i >= 0) services.value[i] = { ...services.value[i], ...msg.status }
+    } else if (msg.type === 'build') {
+      buildRunning.value = msg.state === 'running'
     }
   })
   refresh()
+  pollBuild()
+  buildPoll = setInterval(pollBuild, 3000)
   try {
     const s = await rest.getSettings()
     if (s && s.scanDir) scanDir.value = s.scanDir
   } catch (e) { /* ignore */ }
 })
-onUnmounted(() => off && off())
+onUnmounted(() => {
+  off && off()
+  clearInterval(buildPoll)
+})
 </script>
 
 <style>
@@ -221,6 +274,8 @@ body { margin: 0; background: #f2f4f8; font-family: 'Segoe UI', system-ui, sans-
 .group-title { display: inline-flex; gap: 10px; align-items: center; font-weight: 600; }
 .count { color: #909399; font-weight: 400; font-size: 13px; }
 .group-ops { margin-left: auto; margin-right: 16px; }
+.build-bar { display: flex; gap: 8px; margin-bottom: 10px; }
+.build-term { height: 420px; border: 1px solid #e8ecf2; border-radius: 8px; overflow: hidden; }
 .groups {
   --el-collapse-border-color: transparent;
   background: #fff; border-radius: 12px; padding: 4px 16px;

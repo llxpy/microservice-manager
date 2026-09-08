@@ -41,7 +41,10 @@ func Scan(scanDir string, st *store.Store) (*Result, error) {
 	})
 
 	for _, jar := range jars {
-		port, name := parseJarMeta(jar)
+		port, name, runnable := parseJarMeta(jar)
+		if !runnable {
+			continue // 跳过普通库 jar（无 BOOT-INF，无法 java -jar 运行）
+		}
 		if name == "" {
 			name = guessName(filepath.Base(jar))
 		}
@@ -77,13 +80,17 @@ func guessName(base string) string {
 	return re.ReplaceAllString(n, "")
 }
 
-func parseJarMeta(jarPath string) (port int, name string) {
+func parseJarMeta(jarPath string) (port int, name string, runnable bool) {
 	zr, err := zip.OpenReader(jarPath)
 	if err != nil {
-		return 0, ""
+		return 0, "", false
 	}
 	defer zr.Close()
+	runnable = false
 	for _, f := range zr.File {
+		if strings.HasPrefix(f.Name, "BOOT-INF/") {
+			runnable = true // Spring Boot fat jar 才能用 java -jar 运行
+		}
 		base := strings.ToLower(f.Name)
 		if base == "boot-inf/classes/application.yml" || base == "boot-inf/classes/application.yaml" {
 			rc, err := f.Open()
@@ -92,7 +99,8 @@ func parseJarMeta(jarPath string) (port int, name string) {
 			}
 			data, _ := io.ReadAll(rc)
 			rc.Close()
-			return parseYml(string(data))
+			port, name := parseYml(string(data))
+			return port, name, true
 		}
 		if base == "boot-inf/classes/application.properties" {
 			rc, err := f.Open()
@@ -101,10 +109,14 @@ func parseJarMeta(jarPath string) (port int, name string) {
 			}
 			data, _ := io.ReadAll(rc)
 			rc.Close()
-			return parseProperties(string(data))
+			port, name := parseProperties(string(data))
+			return port, name, true
 		}
 	}
-	return 0, ""
+	if !runnable {
+		return 0, "", false
+	}
+	return 0, "", true
 }
 
 func parseYml(content string) (port int, name string) {
