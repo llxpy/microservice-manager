@@ -78,14 +78,7 @@ func main() {
 	mon := monitor.New(cfg, mgr)
 	mon.Run()
 
-	go func() {
-		ticker := time.NewTicker(cfg.ScanInterval)
-		defer ticker.Stop()
-		for range ticker.C {
-			rescanAll(cfg, st, mgr)
-		}
-	}()
-
+	// 只在启动时扫描一次，之后仅手动触发（保存并扫描 / 重新扫描 / 构建完成）
 	h := &handler.Handler{Hub: hub, Manager: mgr, Store: st, Builder: bldr, ScanDir: cfg.ScanDir}
 	mux := http.NewServeMux()
 	h.Register(mux, cfg.WsPath)

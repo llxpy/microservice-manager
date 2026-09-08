@@ -87,7 +87,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, watch } from 'vue'
+import { reactive, ref, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { rest } from '../api/ws.js'
 
@@ -97,7 +97,14 @@ const emit = defineEmits(['open-log', 'open-metrics', 'refresh'])
 const editOpen = ref(false)
 const runtimes = ref([])
 const interp = ref('')
+const now = ref(Math.floor(Date.now() / 1000))
+let nowTimer = null
 const form = reactive({ id: '', port: 0, group: '', description: '', javaOpts: '', command: '', workDir: '', healthUrl: '', autoRestart: true, type: 'jar' })
+
+onMounted(() => {
+  nowTimer = setInterval(() => { now.value = Math.floor(Date.now() / 1000) }, 1000)
+})
+onUnmounted(() => clearInterval(nowTimer))
 
 function loadRuntimes() {
   rest.runtimes().then((r) => { runtimes.value = r || [] })
@@ -181,9 +188,10 @@ function fmt(v, unit) {
 }
 function uptime(row) {
   if (!row.uptime || row.state === 'stopped') return '-'
-  const sec = Math.floor(Date.now() / 1000 - row.uptime)
+  const sec = Math.max(0, now.value - row.uptime)
   const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60)
-  return h > 0 ? `${h}h${m}m` : `${m}m${sec % 60}s`
+  const s = sec % 60
+  return h > 0 ? `${h}h${m}m` : m > 0 ? `${m}m${s}s` : `${s}s`
 }
 </script>
 
