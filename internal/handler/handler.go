@@ -16,6 +16,7 @@ import (
 
 	"microservice-manager/internal/builder"
 	"microservice-manager/internal/discovery"
+	"microservice-manager/internal/executil"
 	"microservice-manager/internal/manager"
 	"microservice-manager/internal/store"
 	"microservice-manager/internal/ws"
@@ -50,6 +51,7 @@ func (h *Handler) Register(mux *http.ServeMux, wsPath string) {
 	mux.HandleFunc("POST /api/build/stop", h.buildStop)
 	mux.HandleFunc("GET /api/build", h.buildStatus)
 	mux.HandleFunc("GET /api/system/processes", h.sysProcesses)
+	mux.HandleFunc("GET /api/runtimes", h.runtimes)
 	mux.HandleFunc("POST /api/system/kill", h.sysKill)
 	mux.HandleFunc("POST /api/system/open-dir", h.sysOpenDir)
 	mux.HandleFunc(wsPath, h.Hub.ServeWS)
@@ -268,7 +270,7 @@ func (h *Handler) sysKill(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]string{"error": "拒绝结束系统关键进程或面板自身"})
 		return
 	}
-	if err := exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(int(body.PID))).Run(); err != nil {
+	if err := executil.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(int(body.PID))).Run(); err != nil {
 		writeJSON(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
@@ -285,6 +287,68 @@ func (h *Handler) sysOpenDir(w http.ResponseWriter, r *http.Request) {
 	}
 	exec.Command("explorer", "/select,"+body.Path).Start()
 	writeJSON(w, 200, map[string]string{"ok": "true"})
+}
+
+// runtimes 列出可用的解释器/运行时：PATH python、py 启动器版本、conda 环境
+func (h *Handler) runtimes(w http.ResponseWriter, r *http.Request) {
+	type rt struct {
+		Name string `json:"name"`
+		Path string `json:"path"`
+	}
+	out := []rt{}
+	seen := map[string]bool{}
+	add := func(name, path string) {
+		if path == "" {
+			return
+		}
+		if stt, err := os.Stat(path); err != nil || stt.IsDir() {
+			return
+		}
+		key := strings.ToLower(path)
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		out = append(out, rt{Name: name, Path: path})
+	}
+	if p, err := exec.LookPath("python"); err == nil {
+		add("python (PATH)", p)
+	}
+	if o, err := executil.Command("py", "-0p").Output(); err == nil {
+		for _, line := range strings.Split(string(o), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "Installed") {
+				continue
+			}
+			ver, path := "", ""
+			for _, tok := range strings.Fields(line) {
+				if strings.HasPrefix(tok, "-V:") {
+					ver = tok
+				}
+				if strings.Contains(strings.ToLower(tok), "python.exe") {
+					path = tok
+				}
+			}
+			if path != "" {
+				name := "python"
+				if ver != "" {
+					name = "py " + strings.TrimPrefix(ver, "-V:")
+				}
+				add(name, path)
+			}
+		}
+	}
+	if o, err := executil.Command("conda", "env", "list", "--json").Output(); err == nil {
+		var jl struct {
+			Envs []string `json:"envs"`
+		}
+		if json.Unmarshal(o, &jl) == nil {
+			for _, e := range jl.Envs {
+				add("conda:"+filepath.Base(e), filepath.Join(e, "python.exe"))
+			}
+		}
+	}
+	writeJSON(w, 200, out)
 }
 
 func (h *Handler) start(w http.ResponseWriter, r *http.Request) {

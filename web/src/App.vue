@@ -40,7 +40,7 @@
         <el-button type="success" plain :disabled="buildRunning" @click="buildOpen = true">
           {{ buildRunning ? '构建中…' : '🔨 构建项目' }}
         </el-button>
-        <el-button type="warning" plain @click="addOpen = true">➕ 添加服务</el-button>
+        <el-button type="warning" plain @click="addOpen = true; loadRuntimes()">➕ 添加服务</el-button>
         <el-button plain @click="sysOpen = true">🖥 系统进程</el-button>
         <el-button :loading="scanning" @click="rescan(false)">重新扫描</el-button>
       </div>
@@ -106,6 +106,11 @@
 
     <el-dialog v-model="addOpen" title="添加服务（任意语言）" width="560px">
       <el-form label-width="90px">
+        <el-form-item label="解释器">
+          <el-select v-model="interp" placeholder="自动检测（可选，python 项目推荐选择 conda 环境）" clearable filterable style="width: 100%" @change="applyInterp">
+            <el-option v-for="rt in runtimes" :key="rt.path" :label="rt.name" :value="rt.path" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="名称" required><el-input v-model="addForm.name" placeholder="my-service" /></el-form-item>
         <el-form-item label="启动命令" required>
           <el-input v-model="addForm.command" placeholder="python app.py / node server.js / go run main.go ..." />
@@ -156,6 +161,29 @@ const buildRunning = ref(false)
 const buildDir = ref('')
 const addOpen = ref(false)
 const sysOpen = ref(false)
+const runtimes = ref([])
+const interp = ref('')
+
+function loadRuntimes() {
+  rest.runtimes().then((r) => { runtimes.value = r || [] })
+}
+function applyInterp(path) {
+  if (!path) return
+  addForm.command = mergeInterpreter(addForm.command, path)
+}
+function mergeInterpreter(cmd, interpPath) {
+  cmd = (cmd || '').trim()
+  let rest = cmd
+  const m = cmd.match(/^("[^"]+"|\S+)\s*(.*)$/)
+  if (m) {
+    const first = m[1].replace(/^"|"$/g, '')
+    if (/python(\.exe)?$/i.test(first) || /^(python|py)$/i.test(first)) {
+      rest = m[2]
+    }
+  }
+  const q = /\s/.test(interpPath) ? `"${interpPath}"` : interpPath
+  return rest ? `${q} ${rest}` : q
+}
 const addForm = reactive({ name: '', command: '', workDir: '', port: 0, group: '', description: '', autoRestart: true })
 
 function doAdd() {

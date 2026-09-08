@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -15,6 +14,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"microservice-manager/internal/executil"
 	"microservice-manager/internal/store"
 )
 
@@ -214,7 +214,7 @@ func pythonCommand(dir, entry string) string {
 }
 
 func condaEnvPython(env string) string {
-	if out, err := exec.Command("conda", "env", "list", "--json").Output(); err == nil {
+	if out, err := executil.Command("conda", "env", "list", "--json").Output(); err == nil {
 		var jl struct {
 			Envs []string `json:"envs"`
 		}

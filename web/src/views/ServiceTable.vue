@@ -69,6 +69,11 @@
         <el-form-item label="Java 参数"><el-input v-model="form.javaOpts" placeholder="-Xms96m -Xmx128m" /></el-form-item>
       </template>
       <template v-else>
+        <el-form-item label="解释器">
+          <el-select v-model="interp" placeholder="自动检测（可选）" clearable filterable style="width: 100%" @change="applyInterp">
+            <el-option v-for="rt in runtimes" :key="rt.path" :label="rt.name" :value="rt.path" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="启动命令"><el-input v-model="form.command" placeholder="python app.py" /></el-form-item>
         <el-form-item label="工作目录"><el-input v-model="form.workDir" /></el-form-item>
       </template>
@@ -82,7 +87,7 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { rest } from '../api/ws.js'
 
@@ -90,7 +95,29 @@ defineProps({ items: { type: Array, default: () => [] } })
 const emit = defineEmits(['open-log', 'open-metrics', 'refresh'])
 
 const editOpen = ref(false)
+const runtimes = ref([])
+const interp = ref('')
 const form = reactive({ id: '', port: 0, group: '', description: '', javaOpts: '', command: '', workDir: '', healthUrl: '', autoRestart: true, type: 'jar' })
+
+function loadRuntimes() {
+  rest.runtimes().then((r) => { runtimes.value = r || [] })
+}
+watch(editOpen, (v) => { if (v) loadRuntimes() })
+
+function applyInterp(path) {
+  if (!path) return
+  const cmd = (form.command || '').trim()
+  let restCmd = cmd
+  const m = cmd.match(/^("[^"]+"|\S+)\s*(.*)$/)
+  if (m) {
+    const first = m[1].replace(/^"|"$/g, '')
+    if (/python(\.exe)?$/i.test(first) || /^(python|py)$/i.test(first)) {
+      restCmd = m[2]
+    }
+  }
+  const q = /\s/.test(path) ? `"${path}"` : path
+  form.command = restCmd ? `${q} ${restCmd}` : q
+}
 
 function act(action, id) {
   rest[action](id)

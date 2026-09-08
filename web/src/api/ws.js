@@ -74,6 +74,7 @@ export const rest = {
   buildStop: () => api('POST', '/api/build/stop'),
   buildStatus: () => api('GET', '/api/build'),
   sysProcesses: () => api('GET', '/api/system/processes'),
+  runtimes: () => api('GET', '/api/runtimes'),
   sysKill: (pid) => api('POST', '/api/system/kill', { pid }),
   sysOpenDir: (path) => api('POST', '/api/system/open-dir', { path }),
   logs: (id, lines = 200) => api('GET', `/api/logs/${encodeURIComponent(id)}?lines=${lines}`)

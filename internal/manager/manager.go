@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"microservice-manager/internal/config"
+	"microservice-manager/internal/executil"
 	"microservice-manager/internal/store"
 	"microservice-manager/internal/ws"
 )
@@ -316,13 +317,13 @@ func (m *Manager) Start(id string) error {
 	if sv.Type == "jar" {
 		args := append([]string{}, strings.Fields(sv.JavaOpts)...)
 		args = append(args, "-jar", sv.Path)
-		cmd = exec.Command("java", args...)
+		cmd = executil.Command("java", args...)
 	} else {
 		// 任意语言：直接执行启动命令（cmd /c python app.py / node server.js ...）
 		if sv.Command == "" {
 			return errors.New("服务缺少启动命令")
 		}
-		cmd = exec.Command("cmd", "/c", sv.Command)
+		cmd = executil.Command("cmd", "/c", sv.Command)
 	}
 	workDir := sv.WorkDir
 	if workDir == "" {
@@ -439,7 +440,8 @@ func (m *Manager) waitLoop(id string, sv *store.Service, entry *procEntry) {
 	} else {
 		m.emitLog(id, "[manager] process exited\n")
 	}
-	if sv.AutoRestart {
+	// 防崩溃循环：只有运行满 1 分钟的进程才允许自动重启
+	if sv.AutoRestart && time.Since(entry.startedAt) >= time.Minute {
 		m.setState(id, "starting")
 		m.emitLog(id, fmt.Sprintf("[manager] auto restarting in %s\n", m.cfg.RestartDelay))
 		time.Sleep(m.cfg.RestartDelay)
@@ -450,6 +452,9 @@ func (m *Manager) waitLoop(id string, sv *store.Service, entry *procEntry) {
 			}
 		}
 	} else {
+		if sv.AutoRestart {
+			m.emitLog(id, "[manager] 进程运行不足 1 分钟即退出，禁止自动重启（防崩溃循环）\n")
+		}
 		m.setState(id, "failed")
 	}
 }
@@ -465,13 +470,13 @@ func (m *Manager) Stop(id string) error {
 	entry.manual.Store(true)
 
 	// Windows: kill whole process tree
-	kill := exec.Command("taskkill", "/T", "/F", "/PID", fmt.Sprintf("%d", entry.pid))
+	kill := executil.Command("taskkill", "/T", "/F", "/PID", fmt.Sprintf("%d", entry.pid))
 	kill.Run()
 
 	select {
 	case <-entry.waitDone:
 	case <-time.After(m.cfg.StopTimeout):
-		exec.Command("taskkill", "/T", "/F", "/PID", fmt.Sprintf("%d", entry.pid)).Run()
+		executil.Command("taskkill", "/T", "/F", "/PID", fmt.Sprintf("%d", entry.pid)).Run()
 		select {
 		case <-entry.waitDone:
 		case <-time.After(3 * time.Second):

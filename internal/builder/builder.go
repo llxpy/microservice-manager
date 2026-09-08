@@ -7,9 +7,9 @@ import (
 	"os/exec"
 	"sync"
 
+	"microservice-manager/internal/executil"
 	"microservice-manager/internal/ws"
 )
-
 // BuildServiceID 构建日志在 WS 中的伪服务 ID，前端复用日志终端展示
 const BuildServiceID = "__build__"
 
@@ -43,7 +43,7 @@ func (b *Builder) Start(dir string) error {
 	b.lines = nil
 	b.mu.Unlock()
 
-	cmd := exec.Command("cmd", "/c", "mvn", "package", "-DskipTests")
+	cmd := executil.Command("cmd", "/c", "mvn", "package", "-DskipTests")
 	cmd.Dir = dir
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -121,7 +121,7 @@ func (b *Builder) Stop() error {
 	if !running || cmd == nil || cmd.Process == nil {
 		return errors.New("没有正在运行的构建任务")
 	}
-	exec.Command("taskkill", "/T", "/F", "/PID", fmt.Sprint(cmd.Process.Pid)).Run()
+	executil.Command("taskkill", "/T", "/F", "/PID", fmt.Sprint(cmd.Process.Pid)).Run()
 	return nil
 }
 
