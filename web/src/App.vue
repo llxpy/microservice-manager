@@ -36,6 +36,14 @@
     </header>
 
     <main class="main">
+      <div class="list-bar">
+        <el-input
+          v-model="search"
+          placeholder="搜索服务名 / 端口 / 说明"
+          clearable
+          style="width: 320px"
+        />
+      </div>
       <el-collapse v-model="openGroups" class="groups">
         <el-collapse-item v-for="g in groups" :key="g.name" :name="g.name">
           <template #title>
@@ -197,15 +205,31 @@ function nameOf(id) {
 }
 let off = null
 
+const search = ref('')
+
 const groups = computed(() => {
+  const kw = search.value.trim().toLowerCase()
   const map = {}
   for (const s of services.value) {
+    if (kw && !(
+      s.name.toLowerCase().includes(kw) ||
+      (s.description || '').toLowerCase().includes(kw) ||
+      String(s.port || '').includes(kw) ||
+      (s.group || '').toLowerCase().includes(kw)
+    )) continue
     const g = s.group || 'default'
     ;(map[g] = map[g] || []).push(s)
   }
   const names = Object.keys(map).sort()
-  return names.map((name) => ({ name, items: map[name] }))
+  return names.map((name) => ({
+    name,
+    items: map[name].sort((a, b) => stateRank(a) - stateRank(b) || a.name.localeCompare(b.name))
+  }))
 })
+
+function stateRank(s) {
+  return (s.state === 'running' || s.state === 'starting') ? 0 : 1
+}
 
 // 首次有分组数据时默认全部展开（不能在 computed 里写状态，会导致无限渲染循环）
 let groupsInited = false
@@ -341,6 +365,7 @@ body { margin: 0; background: #f2f4f8; font-family: 'Segoe UI', system-ui, sans-
 .ws-dot.on { background: #67c23a; box-shadow: 0 0 0 3px rgba(103,194,58,.2); }
 .ws-dot.off { background: #f56c6c; box-shadow: 0 0 0 3px rgba(245,108,108,.2); }
 .main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+.list-bar { margin-bottom: 12px; }
 .group-title { display: inline-flex; gap: 10px; align-items: center; font-weight: 600; }
 .count { color: #909399; font-weight: 400; font-size: 13px; }
 .group-ops { margin-left: auto; margin-right: 16px; }

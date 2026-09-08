@@ -48,14 +48,15 @@ func Scan(scanDir string, st *store.Store) (*Result, error) {
 		if name == "" {
 			name = guessName(filepath.Base(jar))
 		}
+		group := groupName(scanDir)
 		if existing, _ := st.GetByPath(jar); existing != nil {
 			res.Existing++
 			continue
 		}
 		sv := &store.Service{
-			ID:          name + "@default",
+			ID:          name + "@" + group,
 			Name:        name,
-			Group:       "default",
+			Group:       group,
 			Type:        "jar",
 			Path:        jar,
 			WorkDir:     filepath.Dir(jar),
@@ -72,6 +73,15 @@ func Scan(scanDir string, st *store.Store) (*Result, error) {
 		}
 	}
 	return res, nil
+}
+
+// groupName 用扫描目录的文件夹名作为项目分组名（如 D:\Java\itheima-chain-cloud → itheima-chain-cloud）
+func groupName(scanDir string) string {
+	base := strings.TrimSpace(filepath.Base(scanDir))
+	if base == "" || base == "." || base == "\\" || base == "/" {
+		return "default"
+	}
+	return base
 }
 
 var reSnapshot = regexp.MustCompile(`[-._]?SNAPSHOT$`)
