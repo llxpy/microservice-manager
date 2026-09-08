@@ -88,13 +88,56 @@ func main() {
 	if err != nil {
 		log.Fatalf("embed webdist: %v", err)
 	}
-	mux.Handle("/", http.FileServer(http.FS(sub)))
+	fileServer := http.FileServer(http.FS(sub))
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// index.html 不缓存，避免升级后浏览器引用旧的 hash 资源导致白屏
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		}
+		fileServer.ServeHTTP(w, r)
+	})
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	log.Printf("Listening on http://localhost:%d", cfg.Server.Port)
-	if err := http.ListenAndServe(addr, mux); err != nil {
+
+	// 诊断用：记录每个请求的耗时与状态
+	logFile, _ := os.OpenFile("http-debug.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	logged := http.NewServeMux()
+	logged.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// WebSocket 升级需要原生 ResponseWriter（Hijacker），不能包装
+		if r.URL.Path == cfg.WsPath {
+			mux.ServeHTTP(w, r)
+			return
+		}
+		sw := &statusWriter{ResponseWriter: w, code: 200}
+		start := time.Now()
+		mux.ServeHTTP(sw, r)
+		line := fmt.Sprintf("%s %s -> %d (%dms)\n", r.Method, r.URL.Path, sw.code, time.Since(start).Milliseconds())
+		logFile.WriteString(line)
+		fmt.Print(line)
+	})
+	if err := http.ListenAndServe(addr, logged); err != nil {
 		log.Fatal(err)
 	}
+}
+
+type statusWriter struct {
+	http.ResponseWriter
+	code    int
+	written bool
+}
+
+func (s *statusWriter) WriteHeader(code int) {
+	if !s.written {
+		s.code = code
+		s.written = true
+	}
+	s.ResponseWriter.WriteHeader(code)
+}
+
+func (s *statusWriter) Write(b []byte) (int, error) {
+	s.written = true
+	return s.ResponseWriter.Write(b)
 }
 
 func loadServicesYaml(cfg *config.Config, st *store.Store) {

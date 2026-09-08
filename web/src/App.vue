@@ -1,7 +1,13 @@
 <template>
   <div class="app">
     <header class="topbar">
-      <div class="brand">⚙️ 微服务轻量管家</div>
+      <div class="brand">
+        <div class="brand-icon">⚙️</div>
+        <div>
+          <div class="brand-title">微服务轻量管家</div>
+          <div class="brand-sub">Java Services Manager</div>
+        </div>
+      </div>
       <div class="scan-box">
         <el-input
           v-model="scanDir"
@@ -15,11 +21,11 @@
         <el-button type="primary" :loading="scanning" @click="saveAndScan">保存并扫描</el-button>
       </div>
       <div class="actions">
-        <el-tag :type="online ? 'success' : 'danger'" effect="dark" size="small" round>
-          {{ online ? 'WS 已连接' : 'WS 重连中' }}
-        </el-tag>
+        <el-tooltip :content="online ? 'WebSocket 已连接' : 'WebSocket 重连中'" placement="bottom">
+          <span class="ws-dot" :class="online ? 'on' : 'off'"></span>
+        </el-tooltip>
         <el-button @click="startAll">全部启动</el-button>
-        <el-button type="danger" @click="stopAll">全部停止</el-button>
+        <el-button type="danger" plain @click="stopAll">全部停止</el-button>
         <el-button :loading="scanning" @click="rescan(false)">重新扫描</el-button>
       </div>
     </header>
@@ -29,15 +35,15 @@
         <el-collapse-item v-for="g in groups" :key="g.name" :name="g.name">
           <template #title>
             <span class="group-title">
-              分组：{{ g.name }}
-              <el-tag size="small" type="info" round>{{ g.items.length }} 个服务</el-tag>
-              <el-tag v-if="runningCount(g)" size="small" type="success" round>
+              <el-tag effect="plain" round>{{ g.name }}</el-tag>
+              <span class="count">{{ g.items.length }} 个服务</span>
+              <el-tag v-if="runningCount(g)" size="small" type="success" effect="light" round>
                 {{ runningCount(g) }} 运行中
               </el-tag>
             </span>
             <span class="group-ops" @click.stop>
-              <el-button size="small" type="primary" @click="groupOp(g.name, 'start')">▶ 启动整组</el-button>
-              <el-button size="small" type="danger" @click="groupOp(g.name, 'stop')">■ 停止整组</el-button>
+              <el-button size="small" type="primary" plain @click="groupOp(g.name, 'start')">▶ 启动整组</el-button>
+              <el-button size="small" type="danger" plain @click="groupOp(g.name, 'stop')">■ 停止整组</el-button>
             </span>
           </template>
           <ServiceTable
@@ -72,7 +78,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import ServiceTable from './views/ServiceTable.vue'
 import LogTerminal from './components/LogTerminal.vue'
@@ -103,9 +109,17 @@ const groups = computed(() => {
     ;(map[g] = map[g] || []).push(s)
   }
   const names = Object.keys(map).sort()
-  openGroups.value = openGroups.value.length ? openGroups.value : names
   return names.map((name) => ({ name, items: map[name] }))
 })
+
+// 首次有分组数据时默认全部展开（不能在 computed 里写状态，会导致无限渲染循环）
+let groupsInited = false
+watch(groups, (gs) => {
+  if (!groupsInited && gs.length) {
+    groupsInited = true
+    openGroups.value = gs.map((g) => g.name)
+  }
+}, { immediate: true })
 
 function runningCount(g) {
   return g.items.filter((s) => s.state === 'running' || s.state === 'starting').length
@@ -182,19 +196,35 @@ onUnmounted(() => off && off())
 </script>
 
 <style>
-body { margin: 0; background: var(--el-bg-color-page); }
+body { margin: 0; background: #f2f4f8; font-family: 'Segoe UI', system-ui, sans-serif; }
 .app { min-height: 100vh; }
 .topbar {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 10px 20px; background: var(--el-bg-color);
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  padding: 12px 24px; background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
   position: sticky; top: 0; z-index: 10; flex-wrap: wrap;
 }
-.brand { font-size: 17px; font-weight: 700; white-space: nowrap; }
-.scan-box { display: flex; gap: 8px; align-items: center; flex: 1; min-width: 420px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-icon {
+  width: 40px; height: 40px; border-radius: 10px; font-size: 20px;
+  background: linear-gradient(135deg, #409eff, #7c3aed); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+.brand-title { font-size: 16px; font-weight: 700; color: #1f2d3d; line-height: 1.2; }
+.brand-sub { font-size: 11px; color: #909399; letter-spacing: .5px; }
+.scan-box { display: flex; gap: 8px; align-items: center; flex: 1; min-width: 420px; justify-content: center; }
 .actions { display: flex; align-items: center; gap: 8px; }
-.main { padding: 16px 20px; }
-.group-title { display: inline-flex; gap: 8px; align-items: center; font-weight: 600; }
+.ws-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+.ws-dot.on { background: #67c23a; box-shadow: 0 0 0 3px rgba(103,194,58,.2); }
+.ws-dot.off { background: #f56c6c; box-shadow: 0 0 0 3px rgba(245,108,108,.2); }
+.main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+.group-title { display: inline-flex; gap: 10px; align-items: center; font-weight: 600; }
+.count { color: #909399; font-weight: 400; font-size: 13px; }
 .group-ops { margin-left: auto; margin-right: 16px; }
-.groups { --el-collapse-border-color: var(--el-border-color-lighter); }
+.groups {
+  --el-collapse-border-color: transparent;
+  background: #fff; border-radius: 12px; padding: 4px 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.05);
+}
+.groups .el-collapse-item__header { height: 52px; }
 </style>

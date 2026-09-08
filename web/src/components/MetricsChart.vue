@@ -35,12 +35,12 @@ function render() {
   chart.setOption({
     animation: false,
     tooltip: { trigger: 'axis' },
-    legend: { data: ['CPU %', '内存 MB'], textStyle: { color: '#8b95a7' } },
+    legend: { data: ['CPU %', '内存 MB'], textStyle: { color: '#606266' } },
     grid: { left: 50, right: 20, top: 36, bottom: 28 },
-    xAxis: { type: 'category', data: data.t, axisLabel: { color: '#8b95a7' } },
+    xAxis: { type: 'category', data: data.t, axisLabel: { color: '#606266' } },
     yAxis: [
-      { type: 'value', name: 'CPU %', axisLabel: { color: '#8b95a7' }, splitLine: { lineStyle: { color: '#1e2739' } } },
-      { type: 'value', name: 'MB', axisLabel: { color: '#8b95a7' }, splitLine: { show: false } }
+      { type: 'value', name: 'CPU %', axisLabel: { color: '#606266' }, splitLine: { lineStyle: { color: '#e8ecf2' } } },
+      { type: 'value', name: 'MB', axisLabel: { color: '#606266' }, splitLine: { show: false } }
     ],
     series: [
       { name: 'CPU %', type: 'line', data: data.cpu, showSymbol: false, lineStyle: { color: '#3b82f6' }, itemStyle: { color: '#3b82f6' }, areaStyle: { color: 'rgba(59,130,246,.15)' } },
