@@ -1,12 +1,14 @@
-package main
+﻿package main
 
 import (
+	"bufio"
 	"embed"
 	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"microservice-manager/internal/config"
@@ -26,13 +28,13 @@ var webdist embed.FS
 func main() {
 	cfg, err := config.Load("config.yaml")
 	if err != nil {
-		log.Fatalf("load config: %v", err)
+		fatalf("load config: %v", err)
 	}
 	os.MkdirAll(cfg.LogDir, 0755)
 
 	st, err := store.Open("manager.db")
 	if err != nil {
-		log.Fatalf("open sqlite: %v", err)
+		fatalf("open sqlite: %v", err)
 	}
 	defer st.Close()
 
@@ -51,7 +53,7 @@ func main() {
 
 	svcs, err := st.GetAll()
 	if err != nil {
-		log.Fatalf("load services: %v", err)
+		fatalf("load services: %v", err)
 	}
 
 	hub := ws.NewHub()
@@ -86,7 +88,7 @@ func main() {
 
 	sub, err := fs.Sub(webdist, "internal/webdist")
 	if err != nil {
-		log.Fatalf("embed webdist: %v", err)
+		fatalf("embed webdist: %v", err)
 	}
 	fileServer := http.FileServer(http.FS(sub))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -100,7 +102,7 @@ func main() {
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	log.Printf("Listening on http://localhost:%d", cfg.Server.Port)
 
-	// 诊断用：记录每个请求的耗时与状态
+	// 记录每个请求的耗时与状态（诊断用）
 	logFile, _ := os.OpenFile("http-debug.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	logged := http.NewServeMux()
 	logged.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -116,9 +118,22 @@ func main() {
 		logFile.WriteString(line)
 		fmt.Print(line)
 	})
+
 	if err := http.ListenAndServe(addr, logged); err != nil {
-		log.Fatal(err)
+		fmt.Printf("\n[启动失败] %v\n", err)
+		if strings.Contains(err.Error(), "Only one usage") || strings.Contains(err.Error(), "being used") {
+			fmt.Printf("端口 %d 已被占用：可能面板已在运行（浏览器打开 http://localhost:%d 试试），\n或先结束旧进程：taskkill /F /IM micro-manager.exe\n", cfg.Server.Port, cfg.Server.Port)
+		}
+		fmt.Println("\n按回车键关闭窗口...")
+		bufio.NewReader(os.Stdin).ReadString('\n')
+		os.Exit(1)
 	}
+}
+
+func fatalf(format string, args ...interface{}) {
+	fmt.Printf("[启动失败] "+format+"\n按回车键关闭窗口...\n", args...)
+	bufio.NewReader(os.Stdin).ReadString('\n')
+	os.Exit(1)
 }
 
 type statusWriter struct {
