@@ -27,6 +27,8 @@ import (
 var webdist embed.FS
 
 func main() {
+	printBanner()
+
 	cfg, err := config.Load("config.yaml")
 	if err != nil {
 		fatalf("load config: %v", err)
@@ -144,6 +146,21 @@ func main() {
 		bufio.NewReader(os.Stdin).ReadString('\n')
 		os.Exit(1)
 	}
+}
+
+func printBanner() {
+	const cyan = "\033[36m"
+	const green = "\033[32m"
+	const reset = "\033[0m"
+	fmt.Print(cyan + `
+  __  ___                 ____ __  __
+ |  \/  |_   _ _ __ ___  / ___|  \/  | __ _ _ __   __ _  __ _  ___
+ | |\/| | | | | '__/ _ \| |   | |\/| |/ ` + "`" + ` | '_ \ / _` + "`" + ` |/ _` + "`" + ` |/ __|
+ | |  | | |_| | | |  __/ |___| |  | | (_| | | | | (_| | (_| |\__ \
+ |_|  |_|\__,_|_|  \___|\____|_|  |_|\__,_|_| |_|\__,_|\__, ||___/
+                                                       |___/
+` + reset)
+	fmt.Println(green + "  :: Java Services Manager ::          (v1.0)" + reset)
 }
 
 func fatalf(format string, args ...interface{}) {

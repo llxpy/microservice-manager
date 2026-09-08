@@ -1,6 +1,8 @@
-# 构建产物
+﻿# 构建产物
 *.exe
+!dist/*.exe
 micro-manager
+*.exe~
 
 # 运行时数据
 manager.db
@@ -8,6 +10,7 @@ manager.db-shm
 manager.db-wal
 logs/
 *.pid
+http-debug.log
 
 # 前端依赖
 web/node_modules/
@@ -15,7 +18,3 @@ web/node_modules/
 # IDE
 .idea/
 .vscode/
-
-# �����־
-http-debug.log
-*.exe~
