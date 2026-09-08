@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -89,21 +90,22 @@ func Scan(scanDir string, st *store.Store) (*Result, error) {
 	return res, nil
 }
 
-// scanPolyglotProjects 识别扫描目录一级子目录中的 Python / Node / Go 项目
+// scanPolyglotProjects 识别扫描目录本身及一级子目录中的 Python / Node / Go 项目
 func scanPolyglotProjects(scanDir string, st *store.Store, res *Result, byPath, byWorkDir map[string]bool) {
-	entries, err := os.ReadDir(scanDir)
-	if err != nil {
-		return
+	candidates := []string{scanDir}
+	if entries, err := os.ReadDir(scanDir); err == nil {
+		for _, e := range entries {
+			if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
+				continue
+			}
+			switch strings.ToLower(e.Name()) {
+			case "node_modules", "target", "build", "dist", "out", "venv", "__pycache__", "docs", "logs", "libs":
+				continue
+			}
+			candidates = append(candidates, filepath.Join(scanDir, e.Name()))
+		}
 	}
-	for _, e := range entries {
-		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
-			continue
-		}
-		switch strings.ToLower(e.Name()) {
-		case "node_modules", "target", "build", "dist", "out", "venv", "__pycache__", "docs", "logs", "libs":
-			continue
-		}
-		dir := filepath.Join(scanDir, e.Name())
+	for _, dir := range candidates {
 		sv := detectProject(dir)
 		if sv == nil {
 			continue
@@ -131,7 +133,7 @@ func detectProject(dir string) *store.Service {
 	// Python
 	for _, entry := range pythonEntries {
 		if fileExists(filepath.Join(dir, entry)) {
-			return newDiscovered(dir, "python", "python "+entry, portFromAppYml(dir))
+			return newDiscovered(dir, "python", pythonCommand(dir, entry), portFromAppYml(dir))
 		}
 	}
 	// Node
@@ -188,6 +190,60 @@ func portFromAppYml(dir string) int {
 		return port
 	}
 	return 0
+}
+
+// pythonCommand 为 Python 项目挑选解释器：venv > conda 环境声明 > 系统 python
+func pythonCommand(dir, entry string) string {
+	for _, v := range []string{".venv", "venv"} {
+		py := filepath.Join(dir, v, "Scripts", "python.exe")
+		if fileExists(py) {
+			return py + " " + entry
+		}
+	}
+	if data, err := os.ReadFile(filepath.Join(dir, "environment.yml")); err == nil {
+		var ef struct {
+			Name string `yaml:"name"`
+		}
+		if yaml.Unmarshal(data, &ef) == nil && ef.Name != "" {
+			if py := condaEnvPython(ef.Name); py != "" {
+				return py + " " + entry
+			}
+		}
+	}
+	return "python " + entry
+}
+
+func condaEnvPython(env string) string {
+	if out, err := exec.Command("conda", "env", "list", "--json").Output(); err == nil {
+		var jl struct {
+			Envs []string `json:"envs"`
+		}
+		if json.Unmarshal(out, &jl) == nil {
+			for _, e := range jl.Envs {
+				if strings.EqualFold(filepath.Base(e), env) {
+					return filepath.Join(e, "python.exe")
+				}
+			}
+			return ""
+		}
+	}
+	// conda 不在 PATH 时探测常见安装位置
+	for _, root := range condaCommonRoots() {
+		py := filepath.Join(root, "envs", env, "python.exe")
+		if fileExists(py) {
+			return py
+		}
+	}
+	return ""
+}
+
+func condaCommonRoots() []string {
+	roots := []string{}
+	if hf := os.Getenv("USERPROFILE"); hf != "" {
+		roots = append(roots, filepath.Join(hf, "miniconda3"), filepath.Join(hf, "anaconda3"))
+	}
+	roots = append(roots, `D:\miniconda3`, `D:\anaconda3`, `C:\ProgramData\miniconda3`, `C:\ProgramData\anaconda3`)
+	return roots
 }
 
 func fileExists(p string) bool {
