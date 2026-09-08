@@ -39,6 +39,11 @@ func main() {
 	// load services.yaml (manual definitions take priority on conflict)
 	loadServicesYaml(cfg, st)
 
+	// UI 中设置的扫描目录优先于 config.yaml
+	if dir := st.GetSetting("scanDir"); dir != "" {
+		cfg.ScanDir = dir
+	}
+
 	// initial discovery scan
 	if res, err := discovery.Scan(cfg.ScanDir, st); err == nil {
 		log.Printf("discovery: %d new, %d existing", len(res.New), res.Existing)
@@ -58,12 +63,16 @@ func main() {
 	mon := monitor.New(cfg, mgr)
 	mon.Run()
 
-	// periodic rediscovery
+	// periodic rediscovery (read latest scanDir each tick, UI may change it)
 	go func() {
 		ticker := time.NewTicker(cfg.ScanInterval)
 		defer ticker.Stop()
 		for range ticker.C {
-			if res, err := discovery.Scan(cfg.ScanDir, st); err == nil {
+			dir := st.GetSetting("scanDir")
+			if dir == "" {
+				dir = cfg.ScanDir
+			}
+			if res, err := discovery.Scan(dir, st); err == nil {
 				for _, sv := range res.New {
 					mgr.SetService(sv)
 				}

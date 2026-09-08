@@ -62,6 +62,8 @@ export const rest = {
   restart: (id) => api('POST', `/api/services/${encodeURIComponent(id)}/restart`),
   groupStart: (g) => api('POST', `/api/groups/${encodeURIComponent(g)}/start`),
   groupStop: (g) => api('POST', `/api/groups/${encodeURIComponent(g)}/stop`),
-  scan: () => api('GET', '/api/discovery/scan'),
+  scan: (dir) => api('GET', '/api/discovery/scan' + (dir ? `?dir=${encodeURIComponent(dir)}` : '')),
+  getSettings: () => api('GET', '/api/settings'),
+  saveSettings: (body) => api('POST', '/api/settings', body),
   logs: (id, lines = 200) => api('GET', `/api/logs/${encodeURIComponent(id)}?lines=${lines}`)
 }

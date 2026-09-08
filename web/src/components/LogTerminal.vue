@@ -68,6 +68,6 @@ defineExpose({ clear })
 </script>
 
 <style scoped>
-.term-wrap { flex: 1; min-height: 0; padding: 8px; background: #0d1117; }
+.term-wrap { height: 100%; min-height: 0; background: #0d1117; border-radius: 6px; overflow: hidden; padding: 8px; }
 .terminal { width: 100%; height: 100%; }
 </style>

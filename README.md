@@ -2,7 +2,8 @@
 
 单文件、零依赖的 Windows 本机 Java 服务管理面板。用 Go 编写，常驻内存约 **50MB**，替代 IDEA 来托管 `java -jar` 服务：
 
-- 🔍 **自动发现**：扫描目录下所有 `*.jar`，自动解析 `application.yml` / `application.properties` 中的 `server.port`、`spring.application.name`
+- 🔍 **自动发现**：扫描目录（含**所有子目录**，递归）下所有 `*.jar`，自动解析 `application.yml` / `application.properties` 中的 `server.port`、`spring.application.name`；扫描目录可直接在网页顶栏指定并持久化
+- 🎨 **Element Plus 界面**：暗色主题、分组折叠、表格操作、抽屉日志、弹窗指标
 - ▶️ **一键启停**：启动 / 停止 / 重启，按分组批量操作，进程树整体退出（`taskkill /T`）
 - 🛡️ **崩溃守护**：进程意外退出后 5s 自动重拉（可按服务关闭）
 - 📜 **实时日志**：网页内 xterm.js 终端实时输出，同时落盘 `logs/<服务名>.log`（按大小切分，保留 3 份）
@@ -45,7 +46,9 @@
 
 3. 双击运行 `micro-manager.exe`，浏览器打开 **http://localhost:9090**。
 
-   首次启动会自动扫描 `scanDir`，把所有 jar 登记进面板；之后每 30s 重扫一次，新 jar 自动出现（也可点「重新扫描」立即触发）。
+   首次启动会自动扫描 `scanDir`（**递归含所有子目录**），把所有 jar 登记进面板；之后每 30s 重扫一次，新 jar 自动出现（也可点「重新扫描」立即触发）。
+
+   > 扫描目录也可以不写配置，直接在网页顶栏输入后点「保存并扫描」——会保存到 SQLite，重启面板依然生效，且 UI 设置优先于 config.yaml。
 
 ## 从源码构建
 
@@ -93,8 +96,10 @@ go build -ldflags "-s -w" -o micro-manager.exe .
 | POST | `/api/services/:id/restart` | 重启 |
 | POST | `/api/groups/:group/start` | 分组批量启动 |
 | POST | `/api/groups/:group/stop` | 分组批量停止 |
-| GET | `/api/discovery/scan` | 立即扫描一次 |
+| GET | `/api/discovery/scan` | 立即扫描一次（可带 `?dir=D:\xxx` 指定并持久化目录） |
 | GET | `/api/logs/:id?lines=200` | 拉取最近 N 行历史日志 |
+| GET | `/api/settings` | 读取设置（当前 scanDir） |
+| POST | `/api/settings` | 保存设置，body: `{"scanDir":"D:\\svc"}` |
 | WS | `/ws` | 实时日志 + 指标推送（协议见源码 `internal/ws`） |
 
 示例：

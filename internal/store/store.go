@@ -48,6 +48,7 @@ func Open(path string) (*Store, error) {
 	if _, err := db.Exec(schema); err != nil {
 		return nil, err
 	}
+	s.initSettings()
 	return s, nil
 }
 
@@ -119,4 +120,24 @@ func b2i(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+func (s *Store) initSettings() {
+	s.db.Exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`)
+}
+
+func (s *Store) GetSetting(key string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var v string
+	s.db.QueryRow(`SELECT value FROM settings WHERE key=?`, key).Scan(&v)
+	return v
+}
+
+func (s *Store) SetSetting(key, value string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, err := s.db.Exec(`INSERT INTO settings (key,value) VALUES (?,?)
+		ON CONFLICT(key) DO UPDATE SET value=excluded.value`, key, value)
+	return err
 }

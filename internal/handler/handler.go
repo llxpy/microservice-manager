@@ -31,6 +31,8 @@ func (h *Handler) Register(mux *http.ServeMux, wsPath string) {
 	mux.HandleFunc("POST /api/groups/{group}/stop", h.groupStop)
 	mux.HandleFunc("GET /api/discovery/scan", h.scan)
 	mux.HandleFunc("GET /api/logs/{id}", h.logs)
+	mux.HandleFunc("GET /api/settings", h.getSettings)
+	mux.HandleFunc("POST /api/settings", h.setSettings)
 	mux.HandleFunc(wsPath, h.Hub.ServeWS)
 }
 
@@ -83,6 +85,11 @@ func (h *Handler) groupStop(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) scan(w http.ResponseWriter, r *http.Request) {
+	// optional ?dir= 指定扫描目录并持久化
+	if dir := strings.TrimSpace(r.URL.Query().Get("dir")); dir != "" {
+		h.Store.SetSetting("scanDir", dir)
+		h.ScanDir = dir
+	}
 	res, err := discovery.Scan(h.ScanDir, h.Store)
 	if err != nil {
 		writeJSON(w, 500, map[string]string{"error": err.Error()})
@@ -92,10 +99,35 @@ func (h *Handler) scan(w http.ResponseWriter, r *http.Request) {
 		h.Manager.SetService(sv)
 	}
 	writeJSON(w, 200, map[string]interface{}{
+		"scanDir":  h.ScanDir,
 		"new":      len(res.New),
 		"existing": res.Existing,
 		"services": res.New,
 	})
+}
+
+func (h *Handler) getSettings(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, 200, map[string]string{"scanDir": h.ScanDir})
+}
+
+func (h *Handler) setSettings(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ScanDir string `json:"scanDir"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "invalid body"})
+		return
+	}
+	h.ScanDir = strings.TrimSpace(body.ScanDir)
+	h.Store.SetSetting("scanDir", h.ScanDir)
+	// 立即按新目录扫描
+	res, err := discovery.Scan(h.ScanDir, h.Store)
+	if err == nil {
+		for _, sv := range res.New {
+			h.Manager.SetService(sv)
+		}
+	}
+	writeJSON(w, 200, map[string]interface{}{"ok": "true", "scanDir": h.ScanDir})
 }
 
 func (h *Handler) logs(w http.ResponseWriter, r *http.Request) {
