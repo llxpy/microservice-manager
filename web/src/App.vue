@@ -220,7 +220,7 @@ function refresh() {
 
 // 按行合并：数据没变化的行保留原引用，避免 el-table 整表重渲染闪烁
 const STATIC_KEYS = ['name', 'group', 'path', 'port', 'description', 'command', 'type', 'javaOpts', 'workDir']
-const RUNTIME_KEYS = ['state', 'pid', 'health', 'cpu', 'memMb', 'threads', 'uptime']
+const RUNTIME_KEYS = ['state', 'pid', 'health', 'cpu', 'memMb', 'threads', 'uptime', 'port']
 function mergeList(list) {
   const curMap = new Map(services.value.map((s) => [s.id, s]))
   services.value = list.map((item) => {

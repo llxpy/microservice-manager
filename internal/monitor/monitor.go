@@ -47,11 +47,13 @@ func (mo *Monitor) collectMetrics(id string) {
 	st := mo.mgr.StatusOf(id)
 	if st.State != "running" && st.State != "starting" {
 		mo.mgr.UpdateMetrics(id, 0, 0, 0, false)
+		mo.mgr.SyncState(id, "stopped")
 		return
 	}
 	proc, err := process.NewProcess(int32(st.PID))
 	if err != nil {
 		mo.mgr.UpdateMetrics(id, 0, 0, 0, false)
+		mo.mgr.SyncState(id, "stopped")
 		return
 	}
 	cpu, err := proc.CPUPercent()
@@ -67,6 +69,7 @@ func (mo *Monitor) collectMetrics(id string) {
 		threads = nt
 	}
 	mo.mgr.UpdateMetrics(id, cpu, memMB, threads, true)
+	mo.mgr.SyncState(id, st.State)
 }
 
 func (mo *Monitor) healthLoop() {

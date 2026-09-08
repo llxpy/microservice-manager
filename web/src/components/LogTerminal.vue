@@ -16,6 +16,7 @@ const el = ref(null)
 let term = null
 let fit = null
 let off = null
+let resizeObs = null
 
 function clear() {
   term.clear()
@@ -32,7 +33,7 @@ function loadHistory() {
   })
 }
 
-onMounted(() => {
+onMounted(async () => {
   term = new Terminal({
     convertEol: true,
     fontSize: 12,
@@ -43,7 +44,13 @@ onMounted(() => {
   fit = new FitAddon()
   term.loadAddon(fit)
   term.open(el.value)
+  // 等抽屉/弹窗过渡动画结束、容器有最终尺寸后再 fit，否则终端高度不对
+  await new Promise((r) => setTimeout(r, 300))
   fit.fit()
+  resizeObs = new ResizeObserver(() => {
+    try { fit.fit() } catch (e) { /* ignore */ }
+  })
+  resizeObs.observe(el.value)
 
   off = onMessage((msg) => {
     if (msg.type === 'log' && msg.serviceId === props.serviceId) {
@@ -61,6 +68,7 @@ watch(() => props.serviceId, () => {
 
 onUnmounted(() => {
   off && off()
+  resizeObs && resizeObs.disconnect()
   term && term.dispose()
 })
 

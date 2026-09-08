@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -252,6 +254,52 @@ func (m *Manager) broadcastStatus(id string) {
 	}
 }
 
+var reTomcatPort = regexp.MustCompile(`Tomcat started on port(?:\(s\))?:?\s+(\d+)`)
+
+// detectPort 从启动日志中识别实际监听端口（配置在 Nacos 等配置中心时本地 yml 解析不到）
+func (m *Manager) detectPort(id, line string) {
+	match := reTomcatPort.FindStringSubmatch(line)
+	if match == nil {
+		return
+	}
+	port, _ := strconv.Atoi(match[1])
+	if port <= 0 || port > 65535 {
+		return
+	}
+	m.mu.RLock()
+	sv := m.services[id]
+	s := m.statuses[id]
+	m.mu.RUnlock()
+	if sv == nil || sv.Port == port {
+		return
+	}
+	sv.Port = port
+	if sv.HealthURL == "" {
+		sv.HealthURL = fmt.Sprintf("http://localhost:%d/actuator/health", port)
+	}
+	m.st.Update(sv)
+	m.mu.Lock()
+	if s != nil {
+		s.Port = port
+	}
+	m.mu.Unlock()
+	m.emitLog(id, fmt.Sprintf("[manager] 已从日志识别服务端口: %d\n", port))
+	m.broadcastStatus(id)
+}
+
+// SyncState 由监控循环定期调用，状态发生变化时推送给前端
+func (m *Manager) SyncState(id, state string) {
+	m.mu.Lock()
+	s := m.statuses[id]
+	if s == nil || s.State == state {
+		m.mu.Unlock()
+		return
+	}
+	s.State = state
+	m.mu.Unlock()
+	m.broadcastStatus(id)
+}
+
 func (m *Manager) Start(id string) error {
 	sv := m.get(id)
 	if sv == nil {
@@ -355,6 +403,7 @@ func (m *Manager) pipe(id string, r interface{ Read([]byte) (int, error) }) {
 }
 
 func (m *Manager) emitLog(id, line string) {
+	m.detectPort(id, line)
 	m.mu.RLock()
 	buf := m.buffers[id]
 	lg := m.loggers[id]
