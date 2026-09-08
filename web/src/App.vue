@@ -63,7 +63,7 @@
 
     <el-drawer
       v-model="logOpen"
-      :title="`日志 — ${logService}`"
+      :title="`日志 — ${nameOf(logService)}`"
       size="55%"
       destroy-on-close
     >
@@ -72,7 +72,7 @@
 
     <el-dialog
       v-model="metricOpen"
-      :title="`资源指标 — ${metricService}`"
+      :title="`资源指标 — ${nameOf(metricService)}`"
       width="780px"
       destroy-on-close
     >
@@ -184,6 +184,10 @@ const metricOpen = computed({
   get: () => !!metricService.value,
   set: (v) => { if (!v) metricService.value = null }
 })
+function nameOf(id) {
+  const s = services.value.find((x) => x.id === id)
+  return s ? s.name : (id || '')
+}
 let off = null
 
 const groups = computed(() => {
@@ -208,11 +212,27 @@ watch(groups, (gs) => {
 function runningCount(g) {
   return g.items.filter((s) => s.state === 'running' || s.state === 'starting').length
 }
-
 function refresh() {
-  rest.list().then((list) => { services.value = list || [] })
+  rest.list().then((list) => {
+    if (list) mergeList(list)
+  })
 }
 
+// 按行合并：数据没变化的行保留原引用，避免 el-table 整表重渲染闪烁
+const STATIC_KEYS = ['name', 'group', 'path', 'port', 'description', 'command', 'type', 'javaOpts', 'workDir']
+const RUNTIME_KEYS = ['state', 'pid', 'health', 'cpu', 'memMb', 'threads', 'uptime']
+function mergeList(list) {
+  const curMap = new Map(services.value.map((s) => [s.id, s]))
+  services.value = list.map((item) => {
+    const cur = curMap.get(item.id)
+    if (!cur) return item
+    const merged = { ...cur, ...item }
+    const staticSame = STATIC_KEYS.every((k) => merged[k] === cur[k])
+    if (!staticSame) return merged
+    const runtimeSame = RUNTIME_KEYS.every((k) => merged[k] === cur[k])
+    return runtimeSame ? cur : merged
+  })
+}
 function startAll() {
   groups.value.forEach((g) => rest.groupStart(g.name))
   ElMessage.success('已对全部分组发起启动')
@@ -264,10 +284,15 @@ onMounted(async () => {
       return
     }
     if (msg.type === 'list') {
-      services.value = msg.services || []
+      mergeList(msg.services || [])
     } else if (msg.type === 'status') {
       const i = services.value.findIndex((s) => s.id === msg.serviceId)
-      if (i >= 0) services.value[i] = { ...services.value[i], ...msg.status }
+      if (i >= 0) {
+        const cur = services.value[i]
+        const next = { ...cur, ...msg.status }
+        const changed = RUNTIME_KEYS.some((k) => next[k] !== cur[k])
+        if (changed) services.value.splice(i, 1, next)
+      }
     } else if (msg.type === 'build') {
       buildRunning.value = msg.state === 'running'
     }

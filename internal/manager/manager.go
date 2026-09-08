@@ -146,7 +146,7 @@ func sanitize(name string) string {
 
 func (m *Manager) SetService(sv *store.Service) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	_, existed := m.services[sv.ID]
 	m.services[sv.ID] = sv
 	if _, ok := m.buffers[sv.ID]; !ok {
 		m.buffers[sv.ID] = &ringBuf{max: 1000}
@@ -159,6 +159,11 @@ func (m *Manager) SetService(sv *store.Service) {
 	}
 	if _, ok := m.statuses[sv.ID]; !ok {
 		m.statuses[sv.ID] = &Status{ServiceID: sv.ID, State: "stopped", Health: "unknown"}
+	}
+	m.mu.Unlock()
+	// 仅在新增服务时广播列表，避免每次状态更新都全量刷前端
+	if !existed {
+		m.hub.Broadcast(map[string]interface{}{"type": "list", "services": m.StatusList()})
 	}
 }
 
@@ -189,6 +194,7 @@ func (m *Manager) Remove(id string) error {
 		}
 		lg.mu.Unlock()
 	}
+	m.hub.Broadcast(map[string]interface{}{"type": "list", "services": m.StatusList()})
 	return nil
 }
 
@@ -243,7 +249,6 @@ func (m *Manager) broadcastStatus(id string) {
 	m.mu.RUnlock()
 	if s != nil {
 		m.hub.Broadcast(map[string]interface{}{"type": "status", "serviceId": id, "status": s})
-		m.hub.Broadcast(map[string]interface{}{"type": "list", "services": m.StatusList()})
 	}
 }
 
@@ -494,12 +499,19 @@ func (m *Manager) UpdateMetrics(id string, cpu, memMB float64, threads int32, al
 	m.mu.Unlock()
 }
 
+// UpdateHealth stores health result; skips broadcast when unchanged.
 func (m *Manager) UpdateHealth(id, health string) {
 	m.mu.Lock()
 	s := m.statuses[id]
-	if s != nil {
-		s.Health = health
+	if s == nil {
+		m.mu.Unlock()
+		return
 	}
+	if s.Health == health {
+		m.mu.Unlock()
+		return
+	}
+	s.Health = health
 	m.mu.Unlock()
 	m.broadcastStatus(id)
 }

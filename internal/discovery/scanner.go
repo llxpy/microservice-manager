@@ -74,10 +74,14 @@ func Scan(scanDir string, st *store.Store) (*Result, error) {
 	return res, nil
 }
 
+var reSnapshot = regexp.MustCompile(`[-._]?SNAPSHOT$`)
+var reVersion = regexp.MustCompile(`[-_]?v?\d+(\.\d+)*([-.]?SNAPSHOT)?$`)
+
 func guessName(base string) string {
 	n := strings.TrimSuffix(base, filepath.Ext(base))
-	re := regexp.MustCompile(`[-_]v?\d[\d._]*$`)
-	return re.ReplaceAllString(n, "")
+	n = reVersion.ReplaceAllString(n, "")
+	n = reSnapshot.ReplaceAllString(n, "")
+	return strings.Trim(n, "-_.")
 }
 
 func parseJarMeta(jarPath string) (port int, name string, runnable bool) {

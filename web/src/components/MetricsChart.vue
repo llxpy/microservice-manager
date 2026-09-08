@@ -3,7 +3,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import * as echarts from 'echarts'
 import { onMessage } from '../api/ws.js'
 
@@ -49,7 +49,11 @@ function render() {
   })
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // 等弹窗过渡动画结束、容器有最终尺寸后再初始化，否则宽度计算错误导致图表错乱
+  await nextTick()
+  await new Promise((r) => setTimeout(r, 260))
+  if (!el.value) return
   chart = echarts.init(el.value)
   render()
   off = onMessage((msg) => {
@@ -72,5 +76,5 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.chart { width: 100%; height: 380px; padding: 8px; }
+.chart { width: 100%; height: 420px; }
 </style>
