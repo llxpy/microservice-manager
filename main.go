@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/getlantern/systray"
@@ -106,16 +106,30 @@ func main() {
 		logFile.WriteString(fmt.Sprintf("%s %s -> %d (%dms)\n", r.Method, r.URL.Path, sw.code, time.Since(start).Milliseconds()))
 	})
 
-	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
-	log.Printf("Listening on %s", addr)
+	// 端口被占用时自动 +1 递增重试（最多 +10），绑定成功后才启动托盘/浏览器
+	var ln net.Listener
+	finalPort := cfg.Server.Port
+	for i := 0; i < 10; i++ {
+		var err error
+		ln, err = net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.Server.Host, finalPort))
+		if err == nil {
+			break
+		}
+		log.Printf("端口 %d 被占用，尝试 %d", finalPort, finalPort+1)
+		finalPort++
+	}
+	if ln == nil {
+		fatalUI("启动失败", fmt.Sprintf("端口 %d~%d 全部被占用，无法启动", cfg.Server.Port, finalPort))
+	}
+	if finalPort != cfg.Server.Port {
+		cfg.Server.Port = finalPort
+		log.Printf("已自动切换到端口 %d", finalPort)
+	}
+	log.Printf("Listening on %s:%d", cfg.Server.Host, finalPort)
 
 	go func() {
-		if err := http.ListenAndServe(addr, logged); err != nil {
-			msg := err.Error()
-			if strings.Contains(msg, "Only one usage") || strings.Contains(msg, "being used") {
-				msg = fmt.Sprintf("端口 %d 已被占用：可能面板已在运行，或先结束旧进程：taskkill /F /IM micro-manager.exe\n\n%v", cfg.Server.Port, err)
-			}
-			fatalUI("启动失败", msg)
+		if err := http.Serve(ln, logged); err != nil {
+			fatalUI("服务异常退出", err.Error())
 		}
 	}()
 
