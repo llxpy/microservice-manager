@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 <img src="https://capsule-render.vercel.app/api?type=waving&color=0:2563eb,100:7c3aed&height=200&section=header&text=Micro%20Manager&fontSize=68&fontColor=ffffff&desc=%E4%B8%80%E4%B8%AAexe%20%C2%B7%20%E5%B8%B8%E9%A9%BB%2050MB%20%C2%B7%20Java%20%C2%B7%20Python%20%C2%B7%20Node%20%C2%B7%20Go&descSize=17&descAlignY=72" width="100%" />
 
@@ -53,6 +53,7 @@
 | 📈 **资源与健康** | CPU / 内存 / 线程曲线、Actuator 健康、端口探测 |
 | 🔨 **面板内构建** | `mvn package` 实时日志，完成后自动扫描新服务 |
 | 🖥 **系统进程** | 看到整机所有进程，随手结束不需要的 |
+| 🖅 **托盘常驻** | 无黑窗口，托盘图标一键打开面板，优雅退出 |
 | 📦 **单一可执行文件** | 前端已嵌入，SQLite 内置，零安装 |
 
 ## 🚀 快速开始
@@ -61,8 +62,8 @@
 
 ```txt
 1. 下载本仓库的  dist/micro-manager.exe
-2. 双击运行
-3. 浏览器打开  http://localhost:9090
+2. 双击运行 —— 无黑窗口，托盘出现渐变图标，浏览器自动打开面板
+3. 没弹？托盘右键「打开面板」，或访问  http://localhost:9090
 4. 扫描目录指向你的项目文件夹 —— 服务全部自动出现
 ```
 
@@ -73,8 +74,17 @@
 git clone https://github.com/llxpy/microservice-manager.git
 cd microservice-manager
 cd web && npm install && npm run build && cd ..
-go build -ldflags "-s -w" -o micro-manager.exe .
+go build -ldflags "-s -w -H=windowsgui" -o micro-manager.exe .
 ```
+
+</details>
+
+<details>
+<summary><b>托盘与日志</b></summary>
+
+- 托盘左键菜单：**打开面板** / **退出**（退出不影响已启动的服务进程）
+- 面板运行日志：`logs/manager.log`（启动 banner 也在里面）
+- 端口被占用等启动错误会以系统弹窗提示
 
 </details>
 
