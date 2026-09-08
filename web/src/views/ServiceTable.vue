@@ -4,7 +4,7 @@
       <template #default="{ row }">
         <div class="svc-name">
           {{ row.name }}
-          <el-tag v-if="row.type === 'custom'" size="small" effect="plain" round>自定义</el-tag>
+          <el-tag v-if="row.type !== 'jar'" size="small" effect="plain" round>{{ typeLabel(row.type) }}</el-tag>
         </div>
         <div v-if="row.description" class="svc-desc" :title="row.description">{{ row.description }}</div>
         <div class="svc-path" :title="row.path">{{ row.path }}</div>
@@ -133,6 +133,9 @@ async function del(row) {
   }
   ElMessage.success('已移除')
   emit('refresh')
+}
+function typeLabel(t) {
+  return { python: 'Python', node: 'Node', go: 'Go', custom: '自定义' }[t] || t
 }
 function stateText(s) {
   return { running: '运行中', starting: '启动中', stopped: '已停止', failed: '异常退出' }[s] || s

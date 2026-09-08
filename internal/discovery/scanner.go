@@ -3,6 +3,7 @@ package discovery
 import (
 	"archive/zip"
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -28,6 +29,16 @@ func Scan(scanDir string, st *store.Store) (*Result, error) {
 	if scanDir == "" {
 		return res, nil
 	}
+	existing, _ := st.GetAll()
+	byPath := map[string]bool{}
+	byWorkDir := map[string]bool{}
+	for _, sv := range existing {
+		byPath[sv.Path] = true
+		if sv.WorkDir != "" {
+			byWorkDir[strings.ToLower(sv.WorkDir)] = true
+		}
+	}
+
 	var jars []string
 	filepath.Walk(scanDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -48,8 +59,8 @@ func Scan(scanDir string, st *store.Store) (*Result, error) {
 		if name == "" {
 			name = guessName(filepath.Base(jar))
 		}
-		group := groupName(scanDir)
-		if existing, _ := st.GetByPath(jar); existing != nil {
+		group := projectGroup(scanDir, jar)
+		if byPath[jar] {
 			res.Existing++
 			continue
 		}
@@ -69,19 +80,142 @@ func Scan(scanDir string, st *store.Store) (*Result, error) {
 			sv.HealthURL = fmt.Sprintf("http://localhost:%d/actuator/health", port)
 		}
 		if err := st.Upsert(sv); err == nil {
+			byPath[jar] = true
 			res.New = append(res.New, sv)
 		}
 	}
+
+	scanPolyglotProjects(scanDir, st, res, byPath, byWorkDir)
 	return res, nil
 }
 
-// groupName 用扫描目录的文件夹名作为项目分组名（如 D:\Java\itheima-chain-cloud → itheima-chain-cloud）
-func groupName(scanDir string) string {
-	base := strings.TrimSpace(filepath.Base(scanDir))
-	if base == "" || base == "." || base == "\\" || base == "/" {
-		return "default"
+// scanPolyglotProjects 识别扫描目录一级子目录中的 Python / Node / Go 项目
+func scanPolyglotProjects(scanDir string, st *store.Store, res *Result, byPath, byWorkDir map[string]bool) {
+	entries, err := os.ReadDir(scanDir)
+	if err != nil {
+		return
 	}
-	return base
+	for _, e := range entries {
+		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		switch strings.ToLower(e.Name()) {
+		case "node_modules", "target", "build", "dist", "out", "venv", "__pycache__", "docs", "logs", "libs":
+			continue
+		}
+		dir := filepath.Join(scanDir, e.Name())
+		sv := detectProject(dir)
+		if sv == nil {
+			continue
+		}
+		if byPath[sv.Path] || byWorkDir[strings.ToLower(dir)] {
+			res.Existing++
+			continue
+		}
+		if err := st.Upsert(sv); err == nil {
+			byPath[sv.Path] = true
+			byWorkDir[strings.ToLower(dir)] = true
+			res.New = append(res.New, sv)
+		}
+	}
+}
+
+var pythonEntries = []string{"main.py", "app.py", "server.py", "run.py", "manage.py"}
+var skipDirNames = map[string]bool{
+	"node_modules": true, "target": true, "build": true, "dist": true, "out": true,
+	"venv": true, "__pycache__": true, "docs": true, "logs": true, "libs": true,
+}
+
+// detectProject 通过特征文件识别项目类型与启动命令
+func detectProject(dir string) *store.Service {
+	// Python
+	for _, entry := range pythonEntries {
+		if fileExists(filepath.Join(dir, entry)) {
+			return newDiscovered(dir, "python", "python "+entry, portFromAppYml(dir))
+		}
+	}
+	// Node
+	if fileExists(filepath.Join(dir, "package.json")) {
+		if data, err := os.ReadFile(filepath.Join(dir, "package.json")); err == nil {
+			var pkg struct {
+				Scripts map[string]string `json:"scripts"`
+				Main    string            `json:"main"`
+			}
+			if json.Unmarshal(data, &pkg) == nil {
+				if pkg.Scripts != nil && pkg.Scripts["start"] != "" {
+					return newDiscovered(dir, "node", "npm start", 0)
+				}
+				main := pkg.Main
+				if main == "" {
+					main = "index.js"
+				}
+				if fileExists(filepath.Join(dir, main)) {
+					return newDiscovered(dir, "node", "node "+main, 0)
+				}
+			}
+		}
+	}
+	// Go
+	if fileExists(filepath.Join(dir, "main.go")) || fileExists(filepath.Join(dir, "go.mod")) {
+		return newDiscovered(dir, "go", "go run .", 0)
+	}
+	return nil
+}
+
+func newDiscovered(dir, typ, command string, port int) *store.Service {
+	name := filepath.Base(dir)
+	sv := &store.Service{
+		ID:          name + "@" + name,
+		Name:        name,
+		Group:       name,
+		Type:        typ,
+		Path:        dir,
+		WorkDir:     dir,
+		Command:     command,
+		Port:        port,
+		AutoRestart: true,
+		Enabled:     true,
+	}
+	if port > 0 {
+		sv.HealthURL = fmt.Sprintf("http://localhost:%d/actuator/health", port)
+	}
+	return sv
+}
+
+func portFromAppYml(dir string) int {
+	if data, err := os.ReadFile(filepath.Join(dir, "application.yml")); err == nil {
+		port, _ := parseYml(string(data))
+		return port
+	}
+	return 0
+}
+
+func fileExists(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && !st.IsDir()
+}
+
+// projectGroup 分组 = 项目名：扫描目录本身是项目（有 pom.xml/.git 等特征）则用其目录名；
+// 否则是多项目容器目录，用 jar 所属的一级子目录名。
+func projectGroup(scanDir, jarPath string) string {
+	if isProjectRoot(scanDir) {
+		return filepath.Base(scanDir)
+	}
+	rel, err := filepath.Rel(scanDir, filepath.Dir(jarPath))
+	if err != nil || rel == "." {
+		return filepath.Base(scanDir)
+	}
+	parts := strings.SplitN(rel, string(os.PathSeparator), 2)
+	return parts[0]
+}
+
+func isProjectRoot(dir string) bool {
+	for _, m := range []string{"pom.xml", "build.gradle", "settings.gradle", "package.json", "go.mod", "main.py", "app.py", ".git"} {
+		if fileExists(filepath.Join(dir, m)) {
+			return true
+		}
+	}
+	return false
 }
 
 var reSnapshot = regexp.MustCompile(`[-._]?SNAPSHOT$`)
