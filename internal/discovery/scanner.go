@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -213,18 +215,34 @@ func pythonCommand(dir, entry string) string {
 	return "python " + entry
 }
 
-func condaEnvPython(env string) string {
+var (
+	condaListMu sync.Mutex
+	condaList   []string
+	condaListAt time.Time
+)
+
+func condaEnvList() []string {
+	condaListMu.Lock()
+	defer condaListMu.Unlock()
+	if condaList != nil && time.Since(condaListAt) < 5*time.Minute {
+		return condaList
+	}
 	if out, err := executil.Command("conda", "env", "list", "--json").Output(); err == nil {
 		var jl struct {
 			Envs []string `json:"envs"`
 		}
 		if json.Unmarshal(out, &jl) == nil {
-			for _, e := range jl.Envs {
-				if strings.EqualFold(filepath.Base(e), env) {
-					return filepath.Join(e, "python.exe")
-				}
-			}
-			return ""
+			condaList = jl.Envs
+			condaListAt = time.Now()
+		}
+	}
+	return condaList
+}
+
+func condaEnvPython(env string) string {
+	for _, e := range condaEnvList() {
+		if strings.EqualFold(filepath.Base(e), env) {
+			return filepath.Join(e, "python.exe")
 		}
 	}
 	// conda 不在 PATH 时探测常见安装位置
