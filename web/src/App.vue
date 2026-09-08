@@ -66,6 +66,7 @@
               </el-tag>
             </span>
             <span class="group-ops" @click.stop>
+              <el-button v-if="g.hasJar" size="small" type="success" plain @click="buildGroup(g.name)">🔨 构建</el-button>
               <el-button size="small" type="primary" plain @click="groupOp(g.name, 'start')">▶ 启动整组</el-button>
               <el-button size="small" type="danger" plain @click="groupOp(g.name, 'stop')">■ 停止整组</el-button>
               <el-button size="small" type="warning" plain @click="removeGroup(g.name)">✕ 移除整组</el-button>
@@ -263,6 +264,7 @@ const groups = computed(() => {
   const names = Object.keys(map).sort()
   return names.map((name) => ({
     name,
+    hasJar: map[name].some((s) => s.type === 'jar'),
     items: map[name].sort((a, b) => stateRank(a) - stateRank(b) || a.name.localeCompare(b.name))
   }))
 })
@@ -315,6 +317,17 @@ function stopAll() {
 function groupOp(name, action) {
   action === 'start' ? rest.groupStart(name) : rest.groupStop(name)
   ElMessage.info(`分组 ${name} ${action === 'start' ? '启动' : '停止'}指令已发送`)
+}
+async function buildGroup(name) {
+  const res = await rest.groupBuild(name)
+  if (res && res.error) {
+    ElMessage.error(res.error)
+    return
+  }
+  if (res.dir) buildDir.value = res.dir
+  buildOpen.value = true
+  buildRunning.value = true
+  ElMessage.success(`已开始构建 ${name}`)
 }
 async function removeGroup(name) {
   try {

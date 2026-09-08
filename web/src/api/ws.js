@@ -67,6 +67,7 @@ export const rest = {
   groupStart: (g) => api('POST', `/api/groups/${encodeURIComponent(g)}/start`),
   groupStop: (g) => api('POST', `/api/groups/${encodeURIComponent(g)}/stop`),
   groupRemove: (g) => api('POST', `/api/groups/${encodeURIComponent(g)}/remove`),
+  groupBuild: (g) => api('POST', `/api/groups/${encodeURIComponent(g)}/build`),
   scan: (dir) => api('GET', '/api/discovery/scan' + (dir ? `?dir=${encodeURIComponent(dir)}` : '')),
   getSettings: () => api('GET', '/api/settings'),
   saveSettings: (body) => api('POST', '/api/settings', body),

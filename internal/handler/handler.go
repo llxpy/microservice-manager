@@ -43,6 +43,7 @@ func (h *Handler) Register(mux *http.ServeMux, wsPath string) {
 	mux.HandleFunc("POST /api/groups/{group}/start", h.groupStart)
 	mux.HandleFunc("POST /api/groups/{group}/stop", h.groupStop)
 	mux.HandleFunc("POST /api/groups/{group}/remove", h.groupRemove)
+	mux.HandleFunc("POST /api/groups/{group}/build", h.groupBuild)
 	mux.HandleFunc("GET /api/discovery/scan", h.scan)
 	mux.HandleFunc("GET /api/logs/{id}", h.logs)
 	mux.HandleFunc("GET /api/settings", h.getSettings)
@@ -372,6 +373,20 @@ func (h *Handler) groupStop(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) groupRemove(w http.ResponseWriter, r *http.Request) {
 	n := h.Manager.RemoveGroup(r.PathValue("group"))
 	writeJSON(w, 200, map[string]interface{}{"ok": "true", "removed": n})
+}
+
+func (h *Handler) groupBuild(w http.ResponseWriter, r *http.Request) {
+	group := r.PathValue("group")
+	root := h.Manager.GroupProjectRoot(group)
+	if root == "" {
+		writeJSON(w, 400, map[string]string{"error": "该分组没有可构建的 Java 项目（未找到 pom.xml）"})
+		return
+	}
+	if err := h.Builder.Start(root); err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]string{"ok": "true", "dir": root})
 }
 
 func (h *Handler) scan(w http.ResponseWriter, r *http.Request) {

@@ -535,6 +535,40 @@ func (m *Manager) startGroupAsync(ids []string, action string) {
 func (m *Manager) StartGroup(group string) { m.startGroupAsync(m.GroupServices(group), "start") }
 func (m *Manager) StopGroup(group string)  { m.startGroupAsync(m.GroupServices(group), "stop") }
 
+// GroupProjectRoot 定位分组对应的 Maven 项目根目录（从组内 jar 向上找最外层 pom.xml）
+func (m *Manager) GroupProjectRoot(group string) string {
+	m.mu.RLock()
+	var jarDir string
+	for _, sv := range m.services {
+		if sv.Group == group && sv.Type == "jar" && sv.Path != "" {
+			jarDir = filepath.Dir(sv.Path)
+			break
+		}
+	}
+	m.mu.RUnlock()
+	if jarDir == "" {
+		return ""
+	}
+	root := ""
+	dir := jarDir
+	for i := 0; i < 8; i++ {
+		if fileExistsPom(dir) {
+			root = dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return root
+}
+
+func fileExistsPom(dir string) bool {
+	st, err := os.Stat(filepath.Join(dir, "pom.xml"))
+	return err == nil && !st.IsDir()
+}
+
 // RemoveGroup 停止并移除分组下所有服务（不删除文件），返回移除数量
 func (m *Manager) RemoveGroup(group string) int {
 	ids := m.GroupServices(group)
