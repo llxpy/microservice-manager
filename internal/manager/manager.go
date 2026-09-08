@@ -521,6 +521,39 @@ func (m *Manager) startGroupAsync(ids []string, action string) {
 func (m *Manager) StartGroup(group string) { m.startGroupAsync(m.GroupServices(group), "start") }
 func (m *Manager) StopGroup(group string)  { m.startGroupAsync(m.GroupServices(group), "stop") }
 
+// RemoveGroup 停止并移除分组下所有服务（不删除文件），返回移除数量
+func (m *Manager) RemoveGroup(group string) int {
+	ids := m.GroupServices(group)
+	count := 0
+	for _, id := range ids {
+		if m.Alive(id) {
+			m.Stop(id)
+		}
+		m.mu.Lock()
+		delete(m.services, id)
+		delete(m.procs, id)
+		delete(m.statuses, id)
+		delete(m.buffers, id)
+		lg := m.loggers[id]
+		delete(m.loggers, id)
+		m.mu.Unlock()
+		if lg != nil {
+			lg.mu.Lock()
+			if lg.f != nil {
+				lg.f.Close()
+				lg.f = nil
+			}
+			lg.mu.Unlock()
+		}
+		m.st.Delete(id)
+		count++
+	}
+	if count > 0 {
+		m.hub.Broadcast(map[string]interface{}{"type": "list", "services": m.StatusList()})
+	}
+	return count
+}
+
 func (m *Manager) Tail(id string, lines int) []string {
 	m.mu.RLock()
 	buf := m.buffers[id]

@@ -57,6 +57,7 @@
             <span class="group-ops" @click.stop>
               <el-button size="small" type="primary" plain @click="groupOp(g.name, 'start')">▶ 启动整组</el-button>
               <el-button size="small" type="danger" plain @click="groupOp(g.name, 'stop')">■ 停止整组</el-button>
+              <el-button size="small" type="warning" plain @click="removeGroup(g.name)">✕ 移除整组</el-button>
             </span>
           </template>
           <ServiceTable
@@ -275,6 +276,20 @@ function stopAll() {
 function groupOp(name, action) {
   action === 'start' ? rest.groupStart(name) : rest.groupStop(name)
   ElMessage.info(`分组 ${name} ${action === 'start' ? '启动' : '停止'}指令已发送`)
+}
+async function removeGroup(name) {
+  try {
+    await ElMessageBox.confirm(
+      `确定移除分组「${name}」下所有服务？运行中的会先停止。不会删除任何文件，重新扫描即可找回。`,
+      '移除整组',
+      { type: 'warning' }
+    )
+  } catch (e) {
+    return
+  }
+  const res = await rest.groupRemove(name)
+  ElMessage.success(`已移除 ${res.removed ?? 0} 个服务`)
+  refresh()
 }
 async function rescan(withDir = false) {
   scanning.value = true

@@ -41,6 +41,7 @@ func (h *Handler) Register(mux *http.ServeMux, wsPath string) {
 	mux.HandleFunc("POST /api/services/{id}/open-dir", h.openDir)
 	mux.HandleFunc("POST /api/groups/{group}/start", h.groupStart)
 	mux.HandleFunc("POST /api/groups/{group}/stop", h.groupStop)
+	mux.HandleFunc("POST /api/groups/{group}/remove", h.groupRemove)
 	mux.HandleFunc("GET /api/discovery/scan", h.scan)
 	mux.HandleFunc("GET /api/logs/{id}", h.logs)
 	mux.HandleFunc("GET /api/settings", h.getSettings)
@@ -302,6 +303,11 @@ func (h *Handler) groupStart(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) groupStop(w http.ResponseWriter, r *http.Request) {
 	h.Manager.StopGroup(r.PathValue("group"))
 	writeJSON(w, 200, map[string]string{"ok": "true"})
+}
+
+func (h *Handler) groupRemove(w http.ResponseWriter, r *http.Request) {
+	n := h.Manager.RemoveGroup(r.PathValue("group"))
+	writeJSON(w, 200, map[string]interface{}{"ok": "true", "removed": n})
 }
 
 func (h *Handler) scan(w http.ResponseWriter, r *http.Request) {
