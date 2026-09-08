@@ -1,12 +1,8 @@
 ﻿package main
 
 import (
-	"bytes"
 	"embed"
 	"fmt"
-	"image"
-	"image/color"
-	"image/png"
 	"io/fs"
 	"log"
 	"net/http"
@@ -14,9 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/getlantern/systray"
 
@@ -27,6 +21,7 @@ import (
 	"microservice-manager/internal/manager"
 	"microservice-manager/internal/monitor"
 	"microservice-manager/internal/store"
+	"microservice-manager/internal/ui"
 	"microservice-manager/internal/ws"
 
 	"gopkg.in/yaml.v3"
@@ -34,6 +29,9 @@ import (
 
 //go:embed all:internal/webdist
 var webdist embed.FS
+
+//go:embed assets/app.ico
+var appICO []byte
 
 const version = "v1.0"
 
@@ -139,7 +137,7 @@ func rescanAll(cfg *config.Config, st *store.Store, mgr *manager.Manager) {
 // ---------- 托盘 ----------
 
 func onTrayReady(cfg *config.Config) {
-	systray.SetIcon(appIcon())
+	systray.SetIcon(appICO)
 	systray.SetTitle("Micro Manager")
 	systray.SetTooltip("微服务轻量管家 " + version)
 
@@ -165,48 +163,6 @@ func openBrowser(url string) {
 	exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
 }
 
-// appIcon 运行时生成 64x64 渐变圆角图标（ICO 内嵌 PNG）
-func appIcon() []byte {
-	size := 64
-	img := image.NewRGBA(image.Rect(0, 0, size, size))
-	for y := 0; y < size; y++ {
-		for x := 0; x < size; x++ {
-			dx, dy := float64(x-size/2), float64(y-size/2)
-			d := dx*dx + dy*dy
-			if d <= float64(size/2-2)*float64(size/2-2) {
-				t := float64(y) / float64(size)
-				img.Set(x, y, color.RGBA{
-					R: uint8(37 + t*(124-37)),
-					G: uint8(99 + t*(58-99)),
-					B: uint8(235 + t*(142-235)),
-					A: 255,
-				})
-			}
-		}
-	}
-	var pngBuf bytes.Buffer
-	if err := png.Encode(&pngBuf, img); err != nil {
-		return nil
-	}
-
-	ico := make([]byte, 22)
-	ico[0], ico[1] = 0, 0 // reserved
-	ico[2], ico[3] = 1, 0 // type: icon
-	ico[4], ico[5] = 1, 0 // count
-	ico[6] = byte(size)   // width
-	ico[7] = byte(size)   // height
-	ico[10], ico[11] = 1, 0  // planes
-	ico[12], ico[13] = 32, 0 // bpp
-	sz := uint32(pngBuf.Len())
-	ico[14] = byte(sz)
-	ico[15] = byte(sz >> 8)
-	ico[16] = byte(sz >> 16)
-	ico[17] = byte(sz >> 24)
-	ico[18] = 22 // offset
-	ico[19], ico[20], ico[21] = 0, 0, 0
-	return append(ico, pngBuf.Bytes()...)
-}
-
 func printBannerTo(w interface{ Write([]byte) (int, error) }) {
 	fmt.Fprint(w, `
  __  __ _                __  __
@@ -227,21 +183,13 @@ func setupLogging(cfg *config.Config) {
 	printBannerTo(f)
 }
 
-// ---------- UI 错误提示（无控制台模式用系统弹窗） ----------
-
 func fatalUI(title, msg string) {
 	log.Printf("[启动失败] %s: %s", title, msg)
-	MessageBox(title, msg)
+	ui.MessageBox(title, msg)
 	os.Exit(1)
 }
 
-func MessageBox(title, text string) {
-	user32 := syscall.NewLazyDLL("user32.dll")
-	mb := user32.NewProc("MessageBoxW")
-	t, _ := syscall.UTF16PtrFromString(title)
-	b, _ := syscall.UTF16PtrFromString(text)
-	mb.Call(0, uintptr(unsafe.Pointer(b)), uintptr(unsafe.Pointer(t)), 0x40)
-}
+// ---------- UI 错误提示（无控制台模式用系统弹窗） ----------
 
 type statusWriter struct {
 	http.ResponseWriter
