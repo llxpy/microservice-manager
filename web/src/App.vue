@@ -137,7 +137,7 @@
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import ServiceTable from './views/ServiceTable.vue'
 import LogTerminal from './components/LogTerminal.vue'
 import MetricsChart from './components/MetricsChart.vue'
